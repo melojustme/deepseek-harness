@@ -210,6 +210,10 @@
     - id: ui-workflow-run
       name: '@deepseek-ai/dsh-client-ui-workflow-run'
 
+    # Browser-local thread scheduler: sidebar entry plus frame overlay.
+    - id: ui-work-scheduler
+      name: '@deepseek-ai/dsh-client-ui-work-scheduler'
+
     # Turn tail: the produced-files row under each closing assistant message.
     # Remove this entry to turn the surface off; the tail hole renders empty.
     - id: ui-deliverables
