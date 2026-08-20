@@ -5,7 +5,7 @@
  * the hand-written fixture/host parallel implementations.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId, WorkspaceId } from '../src/client/api.ts'
+import type { SessionId, WorkspaceId, WorkSchedulerDocument } from '../src/client/api.ts'
 import { RpcId } from '../src/client/api.ts'
 import type { HostFrame, MuxFrame, RpcMessage, RpcRequest } from '../src/client/api.ts'
 import { FixtureApiClient, createFixtureApi } from '../src/client/fixture.ts'
@@ -52,6 +52,47 @@ async function collect<F>(stream: AsyncIterable<RpcRequest<F>>, abort: AbortCont
 }
 
 describe('createFixtureApi', () => {
+  it('round-trips work scheduler documents independently by workspace', async () => {
+    const api = createFixtureApi()
+    const workspaceA = 'workspace-a' as WorkspaceId
+    const workspaceB = 'workspace-b' as WorkspaceId
+    const empty: WorkSchedulerDocument = {
+      version: 2,
+      processes: [],
+      tasks: {},
+      backlogIds: [],
+      blockedIds: [],
+      archiveIds: [],
+    }
+    const document: WorkSchedulerDocument = {
+      version: 2,
+      processes: [],
+      tasks: {
+        t1: {
+          id: 't1', description: '检查构建', status: 'ready', reason: '', wakeCondition: '',
+          createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      },
+      backlogIds: ['t1'],
+      blockedIds: [],
+      archiveIds: [],
+    }
+
+    expect((await api.workScheduler.load(req({ workspaceId: workspaceA }))).result).toEqual({
+      ok: true,
+      value: { document: empty },
+    })
+    expect((await api.workScheduler.save(req({ workspaceId: workspaceA, document }))).result.ok).toBe(true)
+    expect((await api.workScheduler.load(req({ workspaceId: workspaceA }))).result).toEqual({
+      ok: true,
+      value: { document },
+    })
+    expect((await api.workScheduler.load(req({ workspaceId: workspaceB }))).result).toEqual({
+      ok: true,
+      value: { document: empty },
+    })
+  })
+
   it('serves the session list sorted by updatedAt desc and echoes rpcIds on every unary', async () => {
     const api = createFixtureApi()
     const request = req({})
@@ -1017,6 +1058,9 @@ describe('FixtureApiClient (protocol-level fake carrier)', () => {
     if (!workspace.result.ok) throw new Error('workspace create failed')
     expect(workspace.result.value.workspace.title).toBe('via-client')
     const wsid = workspace.result.value.workspace.workspaceId
+    const scheduler = await client.workScheduler.load({ workspaceId: wsid })
+    if (!scheduler.result.ok) throw new Error('work scheduler load failed')
+    expect((await client.workScheduler.save({ workspaceId: wsid, document: scheduler.result.value.document })).result.ok).toBe(true)
     const renamed = await client.workspace.rename({ workspaceId: wsid, title: 'via-client-2' })
     if (!renamed.result.ok) throw new Error('workspace rename failed')
     expect(renamed.result.value.workspace.title).toBe('via-client-2')

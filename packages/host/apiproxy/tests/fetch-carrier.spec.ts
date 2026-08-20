@@ -271,6 +271,20 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
         return { rpcId: request.rpcId, result: { ok: true, value: {} } }
       },
     },
+    workScheduler: {
+      async load(request) {
+        return {
+          rpcId: request.rpcId,
+          result: {
+            ok: true,
+            value: { document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } },
+          },
+        }
+      },
+      async save(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: {} } }
+      },
+    },
     llm: {
       async providers(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { providers: [] } } }

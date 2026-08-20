@@ -56,10 +56,16 @@
       config:
         root: !!js dshHomePath('storages')
 
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
+      config:
+        path: !!js dshHomePath('storages', 'storage.sqlite')
+
     - id: storage-domain
       name: '@deepseek-ai/dsh-storage-domain'
       config:
         backend: json
+        routes: {}
 
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
@@ -209,10 +215,6 @@
     # existing generic workflow tool row.
     - id: ui-workflow-run
       name: '@deepseek-ai/dsh-client-ui-workflow-run'
-
-    # Browser-local thread scheduler: sidebar entry plus frame overlay.
-    - id: ui-work-scheduler
-      name: '@deepseek-ai/dsh-client-ui-work-scheduler'
 
     # Turn tail: the produced-files row under each closing assistant message.
     # Remove this entry to turn the surface off; the tail hole renders empty.

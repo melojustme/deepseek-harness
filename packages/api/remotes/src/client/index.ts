@@ -40,7 +40,8 @@ export type {
   RpcRequest, RpcResponse, RpcResult, SessionId, SessionModels, SessionSearchItem,
   SessionSummary, SettingsNamespaceView, SettingsPathOpView, SkillEntry, StreamChunk,
   SubagentAddress, SubagentCatalog, JobView, ToolCallView, ToolEventView, ToolResultView,
-  WorkspaceId, WorkspaceView,
+  WorkspaceId, WorkspaceView, WorkSchedulerApi, WorkSchedulerDocument,
+  SchedulerTask, SchedulerProcess, SchedulerTaskStatus, SchedulerTaskOrigin,
 } from '@deepseek-ai/dsh-client-connection/client'
 export type {} from '@deepseek-ai/dsh-api-gateway/client'
 export type {} from '@deepseek-ai/dsh-cordis-host-runner/remote'

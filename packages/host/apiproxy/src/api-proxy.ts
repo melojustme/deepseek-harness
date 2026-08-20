@@ -1894,6 +1894,11 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @deepseek-ai/dsh-credentials-local) in its composition', details: {} }
   }
 
+  /** Missing-service report shared by the work scheduler domain. */
+  function workSchedulerStoreAbsent(): RpcError {
+    return { code: 'internal', message: 'work scheduler store is absent: this deployment does not mount @deepseek-ai/dsh-work-scheduler-store in its composition', details: {} }
+  }
+
   /** Map one redacted settings descriptor to its wire view. */
   function namespaceView(descriptor: SettingsDescriptor): SettingsNamespaceView {
     return {
@@ -3358,6 +3363,36 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             code: 'model-discovery-failed',
             message: error instanceof Error ? error.message : String(error),
             details: { settingsNs, ...baseURL === undefined ? {} : { baseURL } },
+          })
+        }
+      },
+    },
+
+    workScheduler: {
+      async load(request) {
+        const store = ctx.get('workSchedulerStore')
+        if (store === undefined) return err(request, workSchedulerStoreAbsent())
+        try {
+          return ok(request, await store.load(request.payload.workspaceId))
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: `work scheduler load failed: ${error instanceof Error ? error.message : String(error)}`,
+            details: {},
+          })
+        }
+      },
+      async save(request) {
+        const store = ctx.get('workSchedulerStore')
+        if (store === undefined) return err(request, workSchedulerStoreAbsent())
+        try {
+          await store.save(request.payload.workspaceId, request.payload.document)
+          return ok(request, {})
+        } catch (error: unknown) {
+          return err(request, {
+            code: 'internal',
+            message: `work scheduler save failed: ${error instanceof Error ? error.message : String(error)}`,
+            details: {},
           })
         }
       },

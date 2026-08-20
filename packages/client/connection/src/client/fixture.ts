@@ -34,7 +34,7 @@ import { deriveEventMessage, foldSurface } from '@deepseek-ai/dsh-session/surfac
 import type {
   ApiProxy, ClientRequest, ClientResponse, HistoryEntry, HostFrame, MuxFrame, RpcReceipt,
   ModelProviderGroup, ModelSelection, RpcRequest, RpcResponse, RpcResult, ServerRequest, ServerResponse, SessionSummary,
-  ToolCallView, ToolEventView, ToolResultView, WorkspaceId, WorkspaceView,
+  ToolCallView, ToolEventView, ToolResultView, WorkSchedulerDocument, WorkspaceId, WorkspaceView,
 } from './api.ts'
 import type { RequestPayload, ResponseValue, RpcMethodMap } from '@deepseek-ai/dsh-host-apiproxy/api'
 import { AbstractApiClient, RpcId, SESSION_SEARCH_RESULT_LIMIT } from './api.ts'
@@ -1559,6 +1559,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     createdAt: fixtureEpoch,
     updatedAt: fixtureEpoch,
   }]
+  const workSchedulerDocuments = new Map<WorkspaceId, WorkSchedulerDocument>()
   let nextWorkspace = 1
   // Registry-global archive set mirroring the host: archived sessions keep
   // their workspace accounting slot and only grouping surfaces hide them.
@@ -2962,6 +2963,20 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         models: fixtureModelGroups().flatMap(group => group.models.map(model => ({ id: model.id, name: model.name }))),
       }),
     },
+    workScheduler: {
+      load: (request) => {
+        const stored = workSchedulerDocuments.get(request.payload.workspaceId)
+        return ok(request, {
+          document: stored === undefined
+            ? { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+            : structuredClone(stored),
+        })
+      },
+      save: (request) => {
+        workSchedulerDocuments.set(request.payload.workspaceId, structuredClone(request.payload.document))
+        return ok(request, {})
+      },
+    },
     respond(message: ClientResponse): Promise<RpcReceipt> {
       // Same routing discipline as the host: rpcId first, then the payload's
       // audit correlation; a settled or unknown id is not-pending.
@@ -3129,6 +3144,8 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'llm.providers': return this.api.llm.providers(request)
       case 'llm.models': return this.api.llm.models(request)
       case 'llm.discoverModels': return this.api.llm.discoverModels(request, signal)
+      case 'workScheduler.load': return this.api.workScheduler.load(request)
+      case 'workScheduler.save': return this.api.workScheduler.save(request)
     }
   }
 

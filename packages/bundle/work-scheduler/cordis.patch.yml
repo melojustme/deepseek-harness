@@ -1,0 +1,15 @@
+# Install after @deepseek-ai/dsh-web-app. The Web bundle owns the storage
+# providers, gateway, Client runtime, and slot owners this layer extends.
+
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      work_scheduler: sqlite
+
+- insert:
+    - id: work-scheduler-store
+      name: '@deepseek-ai/dsh-work-scheduler-store'
+
+    - id: ui-work-scheduler
+      name: '@deepseek-ai/dsh-client-ui-work-scheduler'

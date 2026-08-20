@@ -4,6 +4,7 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "references": [
     { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../connection/tsconfig.client.json" },
     { "path": "../runtime" },
     { "path": "../ui-layout" },
     { "path": "../ui-primitives" },

@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest'
+import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import {
   addProcess, addTask, archiveTask, createSchedulerState, moveTask,
   normalizeSchedulerState, runnableTasks, setTaskStatus, wakeTask,
 } from '../src/client/scheduler.ts'
 
 describe('work scheduler domain', () => {
+  it('stores and normalizes an optional Session binding', () => {
+    const sessionId = 'session-1' as SessionId
+    const added = addTask(createSchedulerState(), {
+      id: 'bound', description: '检查会话', sessionId,
+    })
+
+    expect(added.tasks.bound?.sessionId).toBe(sessionId)
+
+    const normalized = normalizeSchedulerState({
+      version: 2,
+      processes: [],
+      tasks: { bound: { ...added.tasks.bound, sessionId } },
+      backlogIds: ['bound'],
+      blockedIds: [],
+      archiveIds: [],
+    })
+    expect(normalized.version).toBe(2)
+    expect(normalized.tasks.bound?.sessionId).toBe(sessionId)
+  })
+
   it('runs only the first task before a synchronous block in each thread', () => {
     let state = createSchedulerState()
     state = addProcess(state, '发布流程', 'p1')
@@ -47,7 +68,7 @@ describe('work scheduler domain', () => {
 
   it('normalizes imported state without duplicate placement or unknown task ids', () => {
     const normalized = normalizeSchedulerState({
-      version: 1,
+      version: 2,
       processes: [{ id: 'p1', name: '线程', taskIds: ['a', 'missing', 'a'] }],
       tasks: { a: { id: 'a', description: '任务', status: 'ready' } },
       backlogIds: ['a', 'missing'],
@@ -57,5 +78,25 @@ describe('work scheduler domain', () => {
 
     expect(normalized.processes[0]?.taskIds).toEqual(['a'])
     expect(normalized.backlogIds).toEqual([])
+  })
+
+  it('preserves an asynchronous block origin through durable normalization', () => {
+    const normalized = normalizeSchedulerState({
+      version: 2,
+      processes: [{ id: 'p1', name: '线程', taskIds: ['a'] }],
+      tasks: {
+        a: { id: 'a', description: '前置', status: 'ready' },
+        b: {
+          id: 'b', description: '等待 CI', status: 'async-blocked',
+          origin: { zone: 'process', processId: 'p1', index: 1 },
+        },
+      },
+      backlogIds: [],
+      blockedIds: ['b'],
+      archiveIds: [],
+    })
+
+    expect(normalized.tasks.b?.origin).toEqual({ zone: 'process', processId: 'p1', index: 1 })
+    expect(wakeTask(normalized, 'b').processes[0]?.taskIds).toEqual(['a', 'b'])
   })
 })

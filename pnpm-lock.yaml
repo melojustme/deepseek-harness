@@ -290,6 +290,9 @@ importers:
       '@deepseek-ai/dsh-web-app':
         specifier: workspace:^
         version: link:../../packages/bundle/web-app
+      '@deepseek-ai/dsh-work-scheduler':
+        specifier: workspace:^
+        version: link:../../packages/bundle/work-scheduler
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
@@ -1359,9 +1362,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-user-questions':
         specifier: workspace:^
         version: link:../../client/ui-user-questions
-      '@deepseek-ai/dsh-client-ui-work-scheduler':
-        specifier: workspace:^
-        version: link:../../client/ui-work-scheduler
       '@deepseek-ai/dsh-client-ui-workflow-run':
         specifier: workspace:^
         version: link:../../client/ui-workflow-run
@@ -1422,6 +1422,9 @@ importers:
       '@deepseek-ai/dsh-storage-json':
         specifier: workspace:^
         version: link:../../storage/storage-json
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: workspace:^
+        version: link:../../storage/storage-sqlite
       '@deepseek-ai/dsh-web-frontend':
         specifier: workspace:^
         version: link:../../../apps/web
@@ -1450,6 +1453,31 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../core/system-prompt
+
+  packages/bundle/work-scheduler:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-work-scheduler':
+        specifier: workspace:^
+        version: link:../../client/ui-work-scheduler
+      '@deepseek-ai/dsh-work-scheduler-store':
+        specifier: workspace:^
+        version: link:../../work-scheduler/work-scheduler-store
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:^
+        version: link:../../../vendor/include
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      js-yaml:
+        specifier: ^4.2.0
+        version: 4.3.1
 
   packages/client/connection:
     dependencies:
@@ -2985,6 +3013,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../connection
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -8151,6 +8182,28 @@ importers:
       '@deepseek-ai/dsh-web':
         specifier: workspace:^
         version: link:../web
+
+  packages/work-scheduler/work-scheduler-store:
+    dependencies:
+      '@deepseek-ai/dsh-host-apiproxy':
+        specifier: workspace:^
+        version: link:../../host/apiproxy
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:^
+        version: link:../../storage/storage
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: workspace:^
+        version: link:../../storage/storage-sqlite
 
   packages/workflow/tool-ralph:
     dependencies:

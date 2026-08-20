@@ -23,9 +23,10 @@ import type {} from '@deepseek-ai/dsh-token-meter'
 
 const CONFIG_DIR = fileURLToPath(new URL('../config/', import.meta.url))
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
-/** The shipped Web surface: the dsh-base and dsh-web-app bundle patches over an empty preset root. */
+/** The shipped three-bundle Web surface over an empty preset root. */
 const BASE_PATCH = join(REPO_ROOT, 'packages/bundle/base/cordis.patch.yml')
 const WEB_PATCH = join(REPO_ROOT, 'packages/bundle/web-app/cordis.patch.yml')
+const WORK_SCHEDULER_PATCH = join(REPO_ROOT, 'packages/bundle/work-scheduler/cordis.patch.yml')
 /** The installation anchor whose dependency surface the preset module fallback mirrors. */
 const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
 const EXAMPLES_INSTALL_ANCHOR = join(REPO_ROOT, 'examples/package.json')
@@ -53,6 +54,7 @@ async function bootWeb(
   const patches: PatchOptions[] = [
     ...loadOverlayPatches('dsh-test', BASE_PATCH),
     ...loadOverlayPatches('dsh-test', WEB_PATCH),
+    ...loadOverlayPatches('dsh-test', WORK_SCHEDULER_PATCH),
     // The settings row defaults to `$DSH_HOME/settings.yaml`. Left alone it
     // reads the developer's own document — and since the default preset is a
     // setting, a stored `agent-presets.default` would decide this file's

@@ -79,7 +79,6 @@
     "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
     "@deepseek-ai/dsh-client-ui-tool": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workflow-run": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-work-scheduler": "workspace:^",
     "@deepseek-ai/dsh-client-ui-trajectory": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-cmdline": "workspace:^",
@@ -101,6 +100,7 @@
     "@deepseek-ai/dsh-storage": "workspace:^",
     "@deepseek-ai/dsh-storage-domain": "workspace:^",
     "@deepseek-ai/dsh-storage-json": "workspace:^",
+    "@deepseek-ai/dsh-storage-sqlite": "workspace:^",
     "@deepseek-ai/dsh-workspace": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
     "commander": "^15.0.0"
