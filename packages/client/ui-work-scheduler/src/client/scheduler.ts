@@ -1,46 +1,33 @@
 /** Pure state transitions for the browser work scheduler. */
 
-export type TaskStatus = 'ready' | 'running' | 'sync-blocked' | 'async-blocked' | 'done'
+import type {
+  SchedulerProcess, SchedulerTask, SchedulerTaskOrigin, SchedulerTaskStatus, SessionId, WorkSchedulerDocument,
+} from '@deepseek-ai/dsh-client-connection/client'
 
-export interface TaskOrigin {
-  zone: 'process' | 'backlog'
-  processId?: string
-  index: number
-}
+// The document vocabulary is the gateway contract, browser-shared with the
+// host store (`@deepseek-ai/dsh-work-scheduler-store`); this module re-exports
+// it under the local names and owns the client-only input shapes and every
+// state transition.
+/** Scheduler task lifecycle status used by client transitions. */
+export type TaskStatus = SchedulerTaskStatus
+/** Placement restored when an asynchronously blocked task wakes. */
+export type TaskOrigin = SchedulerTaskOrigin
+/** Complete versioned scheduler document held by the client store. */
+export type SchedulerState = WorkSchedulerDocument
+export type {
+  SchedulerProcess, SchedulerTask, SchedulerTaskOrigin, SchedulerTaskStatus, WorkSchedulerDocument,
+} from '@deepseek-ai/dsh-client-connection/client'
 
-export interface SchedulerTask {
-  id: string
-  description: string
-  status: TaskStatus
-  reason: string
-  wakeCondition: string
-  origin?: TaskOrigin
-  createdAt: string
-  updatedAt: string
-}
-
-export interface SchedulerProcess {
-  id: string
-  name: string
-  taskIds: string[]
-}
-
-export interface SchedulerState {
-  version: 1
-  processes: SchedulerProcess[]
-  tasks: Record<string, SchedulerTask>
-  backlogIds: string[]
-  blockedIds: string[]
-  archiveIds: string[]
-}
-
+/** Input accepted when adding a task to a process or the backlog. */
 export interface AddTaskInput {
   id?: string
   description: string
+  sessionId?: SessionId
   processId?: string
   status?: TaskStatus
 }
 
+/** Destination collection and insertion index for a task move. */
 export interface MoveTarget {
   zone: 'process' | 'backlog' | 'blocked' | 'archive'
   processId?: string
@@ -49,9 +36,12 @@ export interface MoveTarget {
 
 const VALID_STATUS = new Set<TaskStatus>(['ready', 'running', 'sync-blocked', 'async-blocked', 'done'])
 
-/** Create an empty scheduler document. */
+/**
+ * Create an empty scheduler document.
+ * @returns a version 2 document with no processes or tasks.
+ */
 export function createSchedulerState(): SchedulerState {
-  return { version: 1, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+  return { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
 }
 
 function copyState(state: SchedulerState): SchedulerState {
@@ -73,14 +63,26 @@ function id(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Add one execution thread. */
+/**
+ * Add one execution thread.
+ * @param state - source document.
+ * @param name - user-entered process name.
+ * @param processId - optional stable id; generated when omitted.
+ * @returns a new document containing the process.
+ */
 export function addProcess(state: SchedulerState, name: string, processId = id('thread')): SchedulerState {
   const next = copyState(state)
   next.processes.push({ id: processId, name: name.trim() || `线程 ${next.processes.length + 1}`, taskIds: [] })
   return next
 }
 
-/** Rename an execution thread. */
+/**
+ * Rename an execution thread.
+ * @param state - source document.
+ * @param processId - process to rename.
+ * @param name - non-empty replacement name.
+ * @returns a new document, unchanged when the process or name is invalid.
+ */
 export function renameProcess(state: SchedulerState, processId: string, name: string): SchedulerState {
   const next = copyState(state)
   const process = next.processes.find(item => item.id === processId)
@@ -88,7 +90,12 @@ export function renameProcess(state: SchedulerState, processId: string, name: st
   return next
 }
 
-/** Add one task to a thread or the backlog. */
+/**
+ * Add one task to a process or the backlog.
+ * @param state - source document.
+ * @param input - task content, optional process, status, and stable id.
+ * @returns a new document containing the task in its status-appropriate collection.
+ */
 export function addTask(state: SchedulerState, input: AddTaskInput): SchedulerState {
   const next = copyState(state)
   const taskId = input.id ?? id('task')
@@ -96,6 +103,7 @@ export function addTask(state: SchedulerState, input: AddTaskInput): SchedulerSt
   next.tasks[taskId] = {
     id: taskId,
     description: input.description.trim() || '未命名任务',
+    ...input.sessionId === undefined ? {} : { sessionId: input.sessionId },
     status: input.status ?? 'ready',
     reason: '',
     wakeCondition: '',
@@ -128,7 +136,13 @@ function removePlacement(state: SchedulerState, taskId: string): TaskOrigin | un
   return undefined
 }
 
-/** Move a task between scheduler collections. */
+/**
+ * Move a task between scheduler collections.
+ * @param state - source document.
+ * @param taskId - task to move.
+ * @param target - destination collection and insertion index.
+ * @returns a new document with status and placement updated together.
+ */
 export function moveTask(state: SchedulerState, taskId: string, target: MoveTarget): SchedulerState {
   const next = copyState(state)
   const task = next.tasks[taskId]
@@ -153,7 +167,14 @@ export function moveTask(state: SchedulerState, taskId: string, target: MoveTarg
   return next
 }
 
-/** Change task status and maintain the owning collection. */
+/**
+ * Change task status and maintain the owning collection.
+ * @param state - source document.
+ * @param taskId - task to update.
+ * @param status - next lifecycle status.
+ * @param details - optional block reason and wake condition.
+ * @returns a new document with consistent status and placement.
+ */
 export function setTaskStatus(
   state: SchedulerState,
   taskId: string,
@@ -180,7 +201,12 @@ export function setTaskStatus(
   return next
 }
 
-/** Complete and archive a task. */
+/**
+ * Complete and archive a task.
+ * @param state - source document.
+ * @param taskId - task to archive.
+ * @returns a new document with the task in the archive.
+ */
 export function archiveTask(state: SchedulerState, taskId: string): SchedulerState {
   const next = copyState(state)
   const task = next.tasks[taskId]
@@ -192,7 +218,12 @@ export function archiveTask(state: SchedulerState, taskId: string): SchedulerSta
   return next
 }
 
-/** Restore an asynchronous wait to its recorded position. */
+/**
+ * Restore an asynchronous wait to its recorded position.
+ * @param state - source document.
+ * @param taskId - asynchronously blocked task to wake.
+ * @returns a new document with the task ready at its recorded or fallback position.
+ */
 export function wakeTask(state: SchedulerState, taskId: string): SchedulerState {
   const next = copyState(state)
   const task = next.tasks[taskId]
@@ -214,7 +245,11 @@ export function wakeTask(state: SchedulerState, taskId: string): SchedulerState 
   return next
 }
 
-/** Return the next executable task from every thread. */
+/**
+ * Return the next executable task from every process.
+ * @param state - scheduler document to inspect.
+ * @returns each process paired with its next runnable task.
+ */
 export function runnableTasks(state: SchedulerState): Array<{ process: SchedulerProcess; task: SchedulerTask }> {
   return state.processes.flatMap((process) => {
     for (const taskId of process.taskIds) {
@@ -231,24 +266,47 @@ function text(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() !== '' ? value : fallback
 }
 
-/** Validate and repair scheduler JSON imported from durable browser storage. */
+function record(value: unknown): Record<string, unknown> | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value as Record<string, unknown>
+}
+
+function taskOrigin(value: unknown): TaskOrigin | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const input = value as Partial<TaskOrigin>
+  const index = input.index
+  if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) return undefined
+  if (input.zone === 'backlog') return { zone: 'backlog', index }
+  if (input.zone !== 'process' || typeof input.processId !== 'string' || input.processId === '') return undefined
+  return { zone: 'process', processId: input.processId, index }
+}
+
+/**
+ * Validate and repair an imported or Host-loaded scheduler document.
+ * @param value - untrusted JSON-compatible input.
+ * @returns a version 2 document with unique, status-consistent task placements.
+ */
 export function normalizeSchedulerState(value: unknown): SchedulerState {
-  if (value === null || typeof value !== 'object') return createSchedulerState()
-  const input = value as Partial<SchedulerState>
-  const rawTasks = input.tasks !== null && typeof input.tasks === 'object' ? input.tasks : {}
+  const input = record(value)
+  if (input === undefined || input.version !== 2) return createSchedulerState()
+  const rawTasks = record(input.tasks) ?? {}
   const tasks: Record<string, SchedulerTask> = {}
   for (const [taskId, raw] of Object.entries(rawTasks)) {
-    if (raw === null || typeof raw !== 'object') continue
-    const item = raw as Partial<SchedulerTask>
+    const item = record(raw)
+    if (item === undefined) continue
     const now = new Date().toISOString()
+    const status = VALID_STATUS.has(item.status as TaskStatus) ? item.status as TaskStatus : 'ready'
+    const origin = status === 'async-blocked' ? taskOrigin(item.origin) : undefined
     tasks[taskId] = {
       id: taskId,
       description: text(item.description, '未命名任务'),
-      status: VALID_STATUS.has(item.status as TaskStatus) ? item.status as TaskStatus : 'ready',
+      ...typeof item.sessionId === 'string' && item.sessionId !== '' ? { sessionId: item.sessionId as SessionId } : {},
+      status,
       reason: typeof item.reason === 'string' ? item.reason : '',
       wakeCondition: typeof item.wakeCondition === 'string' ? item.wakeCondition : '',
       createdAt: text(item.createdAt, now),
       updatedAt: text(item.updatedAt, now),
+      ...origin === undefined ? {} : { origin },
     }
   }
   const placed = new Set<string>()
@@ -262,11 +320,12 @@ export function normalizeSchedulerState(value: unknown): SchedulerState {
       return true
     })
   }
-  const processes = Array.isArray(input.processes) ? input.processes.flatMap((raw, index) => {
-    if (raw === null || typeof raw !== 'object') return []
-    const process = raw as Partial<SchedulerProcess>
+  const rawProcesses = Array.isArray(input.processes) ? input.processes as unknown[] : []
+  const processes = rawProcesses.flatMap((raw, index) => {
+    const process = record(raw)
+    if (process === undefined) return []
     return [{ id: text(process.id, id('thread')), name: text(process.name, `线程 ${index + 1}`), taskIds: take(process.taskIds, task => task.status !== 'done' && task.status !== 'async-blocked') }]
-  }) : []
+  })
   const blockedIds = take(input.blockedIds, task => task.status === 'async-blocked')
   const archiveIds = take(input.archiveIds, task => task.status === 'done')
   const backlogIds = take(input.backlogIds, task => task.status !== 'done' && task.status !== 'async-blocked')
@@ -276,5 +335,5 @@ export function normalizeSchedulerState(value: unknown): SchedulerState {
     else if (task.status === 'async-blocked') blockedIds.push(taskId)
     else backlogIds.push(taskId)
   }
-  return { version: 1, processes, tasks, backlogIds, blockedIds, archiveIds }
+  return { version: 2, processes, tasks, backlogIds, blockedIds, archiveIds }
 }

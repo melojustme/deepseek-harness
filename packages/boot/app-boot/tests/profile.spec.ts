@@ -152,12 +152,33 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web).toContain('@deepseek-ai/dsh-base')
+    expect(PROFILE_TEMPLATES.web).toEqual([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      '@deepseek-ai/dsh-work-scheduler',
+    ])
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {
       // Resolution failure is the plain-Node outcome for this empty anchor.
     }
     expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.bundles)
+      .toEqual([...PROFILE_TEMPLATES.web ?? []])
+  })
+
+  it('normalizes the previous installation-owned Web tuple to the shipped template', () => {
+    const anchor = stageInstallation({
+      '@deepseek-ai/dsh-base': { patch: '[]\n' },
+      '@deepseek-ai/dsh-web-app': { patch: '[]\n' },
+      '@deepseek-ai/dsh-work-scheduler': { patch: '[]\n' },
+    })
+    const home = tmp()
+    const profile = resolveProfileDir('web', home)
+    initProfile(profile, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+
+    loadProfile('t', 'web', anchor, home)
+
+    expect(readProfileManifest('t', profile).dsh?.profile?.bundles)
       .toEqual([...PROFILE_TEMPLATES.web ?? []])
   })
 

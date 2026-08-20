@@ -6,48 +6,52 @@ import {
   type AddTaskInput, type MoveTarget, type SchedulerState, type TaskStatus,
 } from './scheduler.ts'
 
-export const STORAGE_KEY = 'dsh.work-scheduler.v1'
+/** Durable load/save state controlling whether scheduler edits are enabled. */
+export type WorkSchedulerLoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
+/** Browser store state shared by the scheduler trigger and panel. */
 export interface WorkSchedulerState {
   open: boolean
   helpOpen: boolean
   document: SchedulerState
+  /** Durable-load lifecycle: idle before the first load, error when the host is unreachable. */
+  status: WorkSchedulerLoadStatus
 }
 
 type WorkSchedulerActions = {
   open: (draft: WorkSchedulerState) => void
   close: (draft: WorkSchedulerState) => void
   toggleHelp: (draft: WorkSchedulerState) => void
-  replace: (draft: WorkSchedulerState, state: SchedulerState) => void
+  setStatus: (draft: WorkSchedulerState, status: WorkSchedulerLoadStatus) => void
+  replace: (draft: WorkSchedulerState, state: unknown) => void
   reset: (draft: WorkSchedulerState) => void
   addProcess: (draft: WorkSchedulerState, name: string, id?: string) => void
   renameProcess: (draft: WorkSchedulerState, processId: string, name: string) => void
   addTask: (draft: WorkSchedulerState, input: AddTaskInput) => void
   moveTask: (draft: WorkSchedulerState, taskId: string, target: MoveTarget) => void
-  setTaskStatus: (draft: WorkSchedulerState, taskId: string, status: TaskStatus, details?: {
-    reason?: string
-    wakeCondition?: string
-  }) => void
+  setTaskStatus: (
+    draft: WorkSchedulerState,
+    taskId: string,
+    status: TaskStatus,
+    details?: { reason?: string; wakeCondition?: string },
+  ) => void
   wakeTask: (draft: WorkSchedulerState, taskId: string) => void
 }
 
-function load(storage: Pick<Storage, 'getItem'>): SchedulerState {
-  try {
-    const raw = storage.getItem(STORAGE_KEY)
-    return raw === null ? createSchedulerState() : normalizeSchedulerState(JSON.parse(raw))
-  } catch {
-    return createSchedulerState()
-  }
-}
-
-/** Create a scheduler store bound to browser storage. */
-export function createWorkSchedulerStore(storage: Pick<Storage, 'getItem'> = localStorage): EngineStoreHandle<WorkSchedulerState, WorkSchedulerActions> {
+/**
+ * Create the scheduler store. Persistence is not the store's business: the
+ * plugin wires `load`/`save` through the gateway, and the panel drives them —
+ * the store only holds the in-memory document and its load lifecycle.
+ * @returns an uninstantiated store handle for both scheduler slot contributions.
+ */
+export function createWorkSchedulerStore(): EngineStoreHandle<WorkSchedulerState, WorkSchedulerActions> {
   return defineStore({
-    init: () => ({ open: false, helpOpen: false, document: load(storage) }),
+    init: () => ({ open: false, helpOpen: false, document: createSchedulerState(), status: 'idle' }),
     actions: {
       open: (draft) => { draft.open = true },
       close: (draft) => { draft.open = false; draft.helpOpen = false },
       toggleHelp: (draft) => { draft.helpOpen = !draft.helpOpen },
+      setStatus: (draft, status) => { draft.status = status },
       replace: (draft, state) => { draft.document = normalizeSchedulerState(state) },
       reset: (draft) => { draft.document = createSchedulerState() },
       addProcess: (draft, name, id) => { draft.document = addProcess(draft.document, name, id) },

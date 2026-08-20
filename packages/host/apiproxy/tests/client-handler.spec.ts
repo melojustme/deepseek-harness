@@ -27,6 +27,7 @@ function scriptedApi(overrides: {
   goals?: Partial<ApiProxy['goals']>
   settings?: Partial<ApiProxy['settings']>
   credentials?: Partial<ApiProxy['credentials']>
+  workScheduler?: Partial<ApiProxy['workScheduler']>
   llm?: Partial<ApiProxy['llm']>
   respond?: ApiProxy['respond']
 } = {}): ApiProxy {
@@ -121,6 +122,11 @@ function scriptedApi(overrides: {
       set: err,
       unset: err,
       ...overrides.credentials,
+    },
+    workScheduler: {
+      load: r => ok(r, { document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } }),
+      save: r => ok(r, {}),
+      ...overrides.workScheduler,
     },
     llm: {
       providers: r => ok(r, { providers: [] }),
@@ -439,6 +445,36 @@ describe('workspace domain round trip', () => {
     const response = await client(scriptedApi()).workspace.create({} as never)
     expect(response.result.ok).toBe(false)
     if (!response.result.ok) expect(response.result.error.code).toBe('bad-request')
+  })
+})
+
+describe('work scheduler domain round trip', () => {
+  it('rejects invalid scheduler documents at the handler schema', async () => {
+    const c = client(scriptedApi())
+    const unsupportedVersion = await c.workScheduler.save({
+      workspaceId: 'w1' as never,
+      document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] },
+    } as never)
+    const missingOriginProcess = await c.workScheduler.save({
+      workspaceId: 'w1' as never,
+      document: {
+        version: 2,
+        processes: [],
+        tasks: {
+          t1: {
+            id: 't1', description: 'wait', status: 'async-blocked', reason: '', wakeCondition: '',
+            origin: { zone: 'process', index: 0 },
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        },
+        backlogIds: [], blockedIds: ['t1'], archiveIds: [],
+      },
+    } as never)
+
+    expect(unsupportedVersion.result.ok).toBe(false)
+    if (!unsupportedVersion.result.ok) expect(unsupportedVersion.result.error.code).toBe('bad-request')
+    expect(missingOriginProcess.result.ok).toBe(false)
+    if (!missingOriginProcess.result.ok) expect(missingOriginProcess.result.error.code).toBe('bad-request')
   })
 })
 
