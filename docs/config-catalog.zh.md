@@ -3293,6 +3293,7 @@ export interface Config {
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — 需要 `tools`（[`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts)）
 - `@deepseek-ai/dsh-tool-cordis` — 需要 `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect`（[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)）
 - `@deepseek-ai/dsh-tool-subagent-control` — 需要 `tools` · `subagents`（[`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts)）
+- `@deepseek-ai/dsh-tool-work-scheduler` — 需要 `agents` · `tools` · `workspaceRegistry` · `workSchedulerStore`（[`packages/work-scheduler/tool-work-scheduler/src/index.ts`](../packages/work-scheduler/tool-work-scheduler/src/index.ts)）
 - `@deepseek-ai/dsh-user-questions`（[`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts)）
 - `@deepseek-ai/dsh-work-scheduler-store` — 需要 `storageDomain`（[`packages/work-scheduler/work-scheduler-store/src/index.ts`](../packages/work-scheduler/work-scheduler-store/src/index.ts)）
 - `@deepseek-ai/dsh-workspace` — 需要 `storageDomain` · `sessionPersistence`（[`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts)）

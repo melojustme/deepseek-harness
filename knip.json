@@ -664,6 +664,11 @@
       "ignoreDependencies": [
         "@deepseek-ai/.+"
       ]
+    },
+    "packages/bundle/work-scheduler": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
     }
   }
 }

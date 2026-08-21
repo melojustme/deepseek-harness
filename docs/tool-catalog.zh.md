@@ -43,6 +43,7 @@
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`、`job_list`、`job_output` | `ctx.tools`、`ctx.jobs`、`ctx.systemPrompt` | `tool/call`、`tool/result`、`user/message via agent.inject() for background completion notices` | - | 与任务种类无关的后台任务控制器：后台 bash 命令、PTY 发送和 subagent 都通过相同的 3 个工具读取、列出和终止。加载该插件会挂接控制器，从而启用生产方的 `ctx.jobs.start()`。 |
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | `followup_task`、`interrupt_agent`、`list_agents`、`send_message`、`spawn_teammate`、`team_task_create`、`team_task_get`、`team_task_list`、`team_task_update`、`wait_agent` | `ctx.tools`、`ctx.systemPrompt`、`ctx.agentTeams`、`an exact live Team member Agent` | `tool/call`、`team/member`、`team/message/queued`、`team/message/delivered`、`team/task`、`tool/result` | - | 这 10 个工具限定于隐式 Team Lead 与持久 teammate 作用域。随产品发布的 dsh-base bundle 默认禁用该包；文档中的 Agent Teams profile patch 会启用它，并禁用旧 continuable child 的同名控制工具。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
+| `@deepseek-ai/dsh-tool-work-scheduler` | `sync_work_scheduler` | `ctx.tools`、`ctx.workspaceRegistry`、`ctx.workSchedulerStore`、`a calling root Agent` | `tool/call`、`the calling Session's SOP projection in its Workspace scheduler document`、`tool/result` | - | 由 work-scheduler bundle 在每个 root Agent 作用域中注册。该工具解析调用 Session 的 Workspace，并且只替换该 Session 的确定性 SOP 任务命名空间。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 
@@ -2080,6 +2081,66 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 来源：[`packages/todo/tool-todo/src/index.ts`](../packages/todo/tool-todo/src/index.ts)
 
 todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。
+
+<a id="deepseek-aidsh-tool-work-scheduler"></a>
+
+## `@deepseek-ai/dsh-tool-work-scheduler`
+
+### `sync_work_scheduler`
+
+将完整且有序的开发 SOP 阶段列表同步到当前 Session 所属 Workspace 的工作调度器中。每次 SOP 阶段转换后都调用此工具。工具从调用 Agent 解析 Workspace 与 Session id，保留人工工作，并且只替换当前 Session 的 SOP 任务。未分配到 Workspace 的 Session 会失败且不写入。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "workflow": {
+      "type": "string",
+      "description": "User-facing name for this development workflow."
+    },
+    "stages": {
+      "type": "array",
+      "description": "Complete ordered SOP stage list. Send every stage on every synchronization.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable lowercase stage key."
+          },
+          "name": {
+            "type": "string",
+            "description": "User-facing stage name."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current stage lifecycle state.",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "status"
+        ]
+      }
+    }
+  },
+  "required": [
+    "workflow",
+    "stages"
+  ]
+}
+```
+
+来源：[`packages/work-scheduler/tool-work-scheduler/src/tool.ts`](../packages/work-scheduler/tool-work-scheduler/src/tool.ts)
+
+由 work-scheduler bundle 在每个 root Agent 作用域中注册。该工具解析调用 Session 的 Workspace，并且只替换该 Session 的确定性 SOP 任务命名空间。
 
 <a id="deepseek-aidsh-tool-workflow"></a>
 

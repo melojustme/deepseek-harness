@@ -18,7 +18,9 @@ Scheduler transitions are pure functions over a version 2 JSON document. Every t
 
 An optional Session ID is the task association's only durable authority. The browser projects the current title from the active Workspace's Session registry and uses native Session navigation when the association resolves. A missing Session or one outside that Workspace remains visible as `会话不可用` and cannot navigate; the stored ID is preserved so a later registry change can make the association valid again.
 
-Scheduler state is intentionally absent from the Session log because it never reaches a model request and does not describe agent execution. Export and import provide explicit JSON portability alongside Host persistence.
+`@deepseek-ai/dsh-tool-work-scheduler` contributes `sync_work_scheduler` to every current and future root Agent. The tool derives the calling Session from tool execution, requires the unique Workspace whose validated Session account contains it, and projects a complete ordered SOP stage snapshot under deterministic `sop:<sessionId>` process and task ids. Pending, active, and completed stages become ready, running, and archived tasks respectively. Every projected task carries the calling Session ID. Synchronization replaces only that Session's `sop:` namespace, preserves manual and other-Session work, retains timestamps on identical input, and permits a completed stage to return to active work.
+
+The full scheduler document remains absent from model requests and the Session log. The model sees the synchronization schema, submits the SOP snapshot through an ordinary logged tool call, and receives only resolved identities and status counts. Export and import provide explicit JSON portability alongside Host persistence.
 
 ## Alternatives considered
 
@@ -30,6 +32,8 @@ Scheduler state is intentionally absent from the Session log because it never re
 
 **Implement storage inside the client package's Node half.** A separate Host package keeps browser presentation and durable storage independently composable and lets the Web bundle choose the storage backend through the existing storage domain.
 
+**Reuse `todo_write` for SOP progress.** `todo_write` owns the current Session's replace-all implementation plan. SOP phases and implementation tasks have different granularity and update cadence; sharing one list would make either writer erase the other's state.
+
 ## Consequences
 
-The shipped Web profile composes base, Web app, and the scheduler bundle. It exposes the scheduler from the sidebar, stores documents across Host restarts, and supports light, dark, desktop, and narrow layouts through dsh design tokens. Pure transition tests pin blocking, waking, archiving, drag placement, import normalization, and asynchronous return positions; a Loader composition test pins SQLite persistence across separate boots. Concurrent editors use last-write-wins replacement, deleted Workspaces leave their scheduler documents behind, and the pre-release version 2 format has no migration path. Scheduler state can locate a Session but has no authority over Sessions, workflows, jobs, or subagents.
+The shipped Web profile composes base, Web app, and the scheduler bundle. It exposes the scheduler from the sidebar, stores documents across Host restarts, and gives root Agents the SOP synchronization tool without adding a global tool. Pure transition tests pin blocking, waking, archiving, drag placement, import normalization, asynchronous return positions, Session-isolated SOP replacement, idempotence, and stage rollback; Loader and shipped-composition tests pin SQLite persistence and Agent-scoped registration. Concurrent editors use last-write-wins replacement, deleted Workspaces leave their scheduler documents behind, and the pre-release version 2 format has no migration path. Scheduler state can locate a Session but has no authority over Sessions, workflows, jobs, or subagents.

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-dsh Web 工作调度器的可安装 profile bundle。它的 [`cordis.patch.yml`](cordis.patch.yml) 把 `work_scheduler` 存储领域路由到 SQLite，并插入 [`dsh-work-scheduler-store`](../../work-scheduler/work-scheduler-store/README.md) Host 插件与 [`dsh-client-ui-work-scheduler`](../../client/ui-work-scheduler/README.md) 浏览器插件。本包没有运行时 API；profile 组合器通过 `dsh.bundle.patch` manifest 字段解析其 patch。
+dsh Web 工作调度器的可安装 profile bundle。它的 [`cordis.patch.yml`](cordis.patch.yml) 把 `work_scheduler` 存储领域路由到 SQLite，并插入 [`dsh-work-scheduler-store`](../../work-scheduler/work-scheduler-store/README.md) Host 插件、Agent 作用域的 [`dsh-tool-work-scheduler`](../../work-scheduler/tool-work-scheduler/README.md) 与 [`dsh-client-ui-work-scheduler`](../../client/ui-work-scheduler/README.md) 浏览器插件。本包自身只是静态 patch carrier；profile 组合器通过 `dsh.bundle.patch` manifest 字段解析其 patch。
 
 该 bundle 要求 profile 中先加载 `@deepseek-ai/dsh-web-app`。Web 表层拥有本层扩展的存储 provider、API gateway、Client runtime、侧栏和布局 slot。随附 `web` profile 依次组合 base、Web app 与本 bundle。没有组合它的 profile 可用以下命令启用调度器：
 
@@ -14,11 +14,11 @@ profile 自有的 `cordis.patch.yml` 位于本层之上，可以禁用任一插�
 
 ## 模型体验
 
-无，因为该 bundle 插入浏览器和 Host 持久化插件，调度文档不会进入模型请求或 Session 日志。
+无，因为本包是静态 patch carrier；插入的 `dsh-tool-work-scheduler` 行拥有面向模型的 schema 与结果。
 
 #### KV Cache 影响
 
-无；插入的插件不会改变模型请求。
+本包自身无影响；插入的各行分别拥有自己的请求前缀与历史记录影响。
 
 ## 已知限制与延期工作
 

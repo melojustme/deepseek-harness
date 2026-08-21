@@ -11,5 +11,8 @@
     - id: work-scheduler-store
       name: '@deepseek-ai/dsh-work-scheduler-store'
 
+    - id: tool-work-scheduler
+      name: '@deepseek-ai/dsh-tool-work-scheduler'
+
     - id: ui-work-scheduler
       name: '@deepseek-ai/dsh-client-ui-work-scheduler'

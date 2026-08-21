@@ -18,7 +18,9 @@ Status: implemented
 
 可选 Session ID 是任务关联唯一的持久化权威。浏览器从当前 Workspace 的 Session 注册表投影最新标题，并在关联有效时使用原生 Session 导航。Session 缺失或不属于该 Workspace 时，关联仍显示为`会话不可用`且不能导航；存储的 ID 会继续保留，后续注册表变化可以让关联重新有效。
 
-调度状态不会进入 Session 日志，因为它不会到达模型请求，也不描述 agent 执行。Host 持久化之外，导入导出还提供显式 JSON 迁移能力。
+`@deepseek-ai/dsh-tool-work-scheduler` 向当前及未来的每个 root Agent 提供 `sync_work_scheduler`。工具从执行上下文取得调用 Session，要求该 Session 只属于一个经过校验的 Workspace，并在确定性的 `sop:<sessionId>` process 与 task id 下投影完整且有序的 SOP 阶段快照。待处理、活动和已完成阶段分别成为 ready、running 和 archived 任务；每个投影任务都携带调用 Session ID。同步只替换当前 Session 的 `sop:` 命名空间，保留人工任务和其他 Session 的工作，在输入相同时保留时间戳，并允许已完成阶段重新变为活动状态。
+
+完整调度文档不会进入模型请求或 Session 日志。模型看到同步 schema，通过普通的已记录工具调用提交 SOP 快照，并且只收到解析出的标识与状态计数。Host 持久化之外，导入导出还提供显式 JSON 迁移能力。
 
 ## 曾考虑的替代方案
 
@@ -30,6 +32,8 @@ Status: implemented
 
 **在客户端包的 Node 半部实现存储。** 独立 Host 包让浏览器呈现与持久存储可以分别组合，并允许 Web bundle 通过现有 storage domain 选择后端。
 
+**复用 `todo_write` 记录 SOP 进度。** `todo_write` 拥有当前 Session 的整表替换式实现计划。SOP 阶段和实现任务的粒度与更新频率不同，共用一份列表会让任一写入方清除另一方的状态。
+
 ## 后果
 
-随附 Web profile 依次组合 base、Web app 与调度 bundle。它从侧栏提供调度入口，在 Host 重启后保留调度文档，并通过 dsh 设计 token 支持浅色、深色、桌面和窄屏布局。纯状态转换测试固定阻塞、唤醒、归档、拖放位置、导入规范化和异步返回位置；Loader 组合测试固定跨两次独立启动的 SQLite 持久化。并发编辑采用后写胜出，删除 Workspace 后仍会留下调度文档，预发布版本 2 格式没有迁移路径。调度状态可以定位 Session，但对 Session、工作流、后台作业和子 agent 没有控制权。
+随附 Web profile 依次组合 base、Web app 与调度 bundle。它从侧栏提供调度入口，在 Host 重启后保留调度文档，并且在不增加全局工具的情况下向 root Agent 提供 SOP 同步工具。纯状态转换测试固定阻塞、唤醒、归档、拖放位置、导入规范化、异步返回位置、按 Session 隔离的 SOP 替换、幂等性和阶段回退；Loader 与随附组合测试固定 SQLite 持久化及 Agent 作用域注册。并发编辑采用后写胜出，删除 Workspace 后仍会留下调度文档，预发布版本 2 格式没有迁移路径。调度状态可以定位 Session，但对 Session、工作流、后台作业和子 agent 没有控制权。

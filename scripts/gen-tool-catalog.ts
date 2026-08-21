@@ -63,6 +63,7 @@ import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import { registerWorkSchedulerTool } from '@deepseek-ai/dsh-tool-work-scheduler'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
@@ -572,6 +573,26 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-work-scheduler',
+    dir: 'tool-work-scheduler',
+    source: 'packages/work-scheduler/tool-work-scheduler/src/tool.ts',
+    requires: ['ctx.tools', 'ctx.workspaceRegistry', 'ctx.workSchedulerStore', 'a calling root Agent'],
+    writes: ['tool/call', 'the calling Session\'s SOP projection in its Workspace scheduler document', 'tool/result'],
+    async mount(ctx) {
+      const agent = { id: SessionId('tool-catalog-work-scheduler') } as Agent
+      await mountCatalogChildScope(
+        ctx,
+        (childCtx) => { registerWorkSchedulerTool(ctx, childCtx, agent) },
+        agent,
+        ['tools'],
+      )
+    },
+    scope: ctx => catalogChildScopes.get(ctx) as Agent,
+    note:
+      'Registered in each root Agent scope by the work-scheduler bundle. The tool resolves the '
+      + 'calling Session\'s Workspace and replaces only that Session\'s deterministic SOP task namespace.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

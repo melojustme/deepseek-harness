@@ -8,7 +8,7 @@ import * as yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 
 describe('dsh-work-scheduler bundle', () => {
-  it('declares a parseable layer containing storage, Host, and Client contributions', () => {
+  it('declares a parseable layer containing storage, Host, Agent, and Client contributions', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>
@@ -24,8 +24,10 @@ describe('dsh-work-scheduler bundle', () => {
     expect(storage?.config).toEqual({ backend: 'json', routes: { work_scheduler: 'sqlite' } })
     const rows = parsed.flatMap(patch => patch.insert ?? [])
     expect(rows).toContainEqual({ id: 'work-scheduler-store', name: '@deepseek-ai/dsh-work-scheduler-store' })
+    expect(rows).toContainEqual({ id: 'tool-work-scheduler', name: '@deepseek-ai/dsh-tool-work-scheduler' })
     expect(rows).toContainEqual({ id: 'ui-work-scheduler', name: '@deepseek-ai/dsh-client-ui-work-scheduler' })
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-work-scheduler-store')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-work-scheduler')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-client-ui-work-scheduler')
   })
 })
