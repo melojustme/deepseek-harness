@@ -2,7 +2,11 @@
 
 English | [中文](README.zh.md)
 
-The browser plugin for a thread-oriented personal work scheduler in dsh Web. It registers a footer action in the sidebar and a full-frame overlay through the existing slot system. Each thread advances tasks in order: a synchronous block stops later work in that thread, while an asynchronous block moves the task to a separate waiting list and preserves its return position.
+The browser plugin for a thread-oriented personal work scheduler in dsh Web. It registers a footer action in the sidebar and a modal window through the existing slot system. Each thread advances tasks in order: a synchronous block stops later work in that thread, while an asynchronous block moves the task to a separate waiting list and preserves its return position.
+
+## Window presentation
+
+On desktop, the scheduler opens centered at `92vw` by `86vh`. Its bottom-right affordance resizes the window down to `760 x 560` when the viewport permits, and the header toggle switches between windowed and application-fullscreen modes. Restoring returns to the geometry captured before fullscreen; closing discards the geometry and the next open uses the default size. Viewports at or below 760 px fill the application viewport and hide the fullscreen and resize controls. The help panel remains inside the scheduler window. These modes do not use the browser Fullscreen API or persist presentation state.
 
 ## Persistence and portability
 
@@ -14,13 +18,15 @@ Import normalizes task status, placement, and asynchronous wake origins, removes
 
 ## Session association and task movement
 
+A new task starts from a collapsed primary action instead of keeping every field in the command row. Opening the editor focuses a multiline description, presents the backlog and current threads as a horizontally scrollable radio group, and offers a searchable list of Sessions from the active Workspace. Submitting or cancelling clears the draft. `Escape` closes the Session picker first, then the task editor, then the scheduler window. On small viewports, the board retains its own scrolling area while the editor is open.
+
 A new task may store the ID of one Session in its Workspace. The card resolves the current display title from the Session registry and opens that Session through native dsh navigation, closing the scheduler overlay so the conversation is visible. The document does not copy the title. If the Session is absent or belongs to another Workspace, the card keeps the association visible as `会话不可用` and performs no navigation.
 
 Editable task cards use native browser dragging. Dropping on a card reorders relative to that card; dropping on a lane appends to that thread. Both same-thread and cross-thread moves use the scheduler's placement transition, so status and durable ordering update together.
 
 ## Composition
 
-The sidebar trigger and frame overlay share one plugin-owned store. The panel reads the Session and Workspace registries from the client runtime and calls the connection plugin for durable load and save. Removing the client entry retracts both slot contributions. The installable [`dsh-work-scheduler`](../../bundle/work-scheduler/README.md) bundle mounts this plugin and its Host store after the Web surface owners.
+The sidebar trigger and modal contribution share one plugin-owned store. The panel reads the Session and Workspace registries from the client runtime and calls the connection plugin for durable load and save. Removing the client entry retracts both slot contributions. The installable [`dsh-work-scheduler`](../../bundle/work-scheduler/README.md) bundle mounts this plugin and its Host store after the Web surface owners.
 
 ## Model Experience
 

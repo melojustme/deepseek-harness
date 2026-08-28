@@ -131,12 +131,87 @@ describe('work scheduler surface', () => {
 
     fireEvent.change(view.getByRole('textbox', { name: '线程名称' }), { target: { value: '发布' } })
     fireEvent.click(view.getByRole('button', { name: '新建线程' }))
-    fireEvent.change(view.getByRole('textbox', { name: '任务内容' }), { target: { value: '检查构建' } })
-    fireEvent.change(view.getByRole('combobox', { name: '任务位置' }), { target: { value: view.instance.getSnapshot().document.processes[0]!.id } })
+    expect(view.queryByRole('textbox', { name: '任务内容' })).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: '新建任务' }))
+    const taskInput = view.getByRole('textbox', { name: '任务内容' })
+    expect(document.activeElement).toBe(taskInput)
+    fireEvent.change(taskInput, { target: { value: '检查构建' } })
+    fireEvent.click(view.getByRole('radio', { name: '发布' }))
     fireEvent.click(view.getByRole('button', { name: '添加任务' }))
 
     expect(view.getAllByText('检查构建')).toHaveLength(2)
     expect(view.getByText(/1 个线程可以继续推进/)).toBeTruthy()
+    expect(view.queryByRole('textbox', { name: '任务内容' })).toBeNull()
+  })
+
+  it('toggles application fullscreen and restores the captured window geometry', () => {
+    const view = mountScheduler()
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    const dialog = view.getByRole('dialog', { name: '工作调度' })
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({
+      top: 70, left: 64, right: 1264, bottom: 770, width: 1200, height: 700,
+    } as DOMRect)
+
+    const fullscreen = view.getByRole('button', { name: '全屏' })
+    fullscreen.focus()
+    fireEvent.click(fullscreen)
+
+    const restore = view.getByRole('button', { name: '还原' })
+    expect(restore).toBe(fullscreen)
+    expect(restore.getAttribute('aria-pressed')).toBe('true')
+    expect(document.activeElement).toBe(restore)
+
+    fireEvent.click(restore)
+    expect(view.getByRole('button', { name: '全屏' })).toBe(fullscreen)
+    expect(fullscreen.getAttribute('aria-pressed')).toBe('false')
+    expect(dialog.style.top).toBe('70px')
+    expect(dialog.style.left).toBe('64px')
+    expect(dialog.style.width).toBe('1200px')
+    expect(dialog.style.height).toBe('700px')
+  })
+
+  it('resets window mode and geometry after closing and reopening', async () => {
+    const view = mountScheduler()
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    const dialog = view.getByRole('dialog', { name: '工作调度' })
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({
+      top: 70, left: 64, right: 1264, bottom: 770, width: 1200, height: 700,
+    } as DOMRect)
+    fireEvent.click(view.getByRole('button', { name: '全屏' }))
+    fireEvent.click(view.getByRole('button', { name: '关闭' }))
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+
+    await waitFor(() => {
+      expect(view.getByRole('button', { name: '全屏' }).getAttribute('aria-pressed')).toBe('false')
+    })
+    const reopened = view.getByRole('dialog', { name: '工作调度' })
+    expect(reopened.style.top).toBe('')
+    expect(reopened.style.left).toBe('')
+    expect(reopened.style.width).toBe('')
+    expect(reopened.style.height).toBe('')
+  })
+
+  it('resizes from the bottom right within minimum bounds and stops after pointer release', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1200)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
+    const view = mountScheduler()
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    const dialog = view.getByRole('dialog', { name: '工作调度' })
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({
+      top: 50, left: 60, right: 1060, bottom: 750, width: 1000, height: 700,
+    } as DOMRect)
+    const handle = view.getByTestId('work-scheduler-resize-handle')
+
+    fireEvent.pointerDown(handle, { clientX: 1060, clientY: 750, pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 700, clientY: 400, pointerId: 1 })
+    expect(dialog.style.width).toBe('760px')
+    expect(dialog.style.height).toBe('560px')
+
+    fireEvent.pointerUp(window, { pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 1100, clientY: 760, pointerId: 1 })
+    expect(dialog.style.width).toBe('760px')
+    expect(dialog.style.height).toBe('560px')
   })
 
   it('binds a new task to a Workspace Session and leaves the scheduler when opening it', async () => {
@@ -145,9 +220,18 @@ describe('work scheduler surface', () => {
     await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
     act(() => { view.instance.actions.addProcess('开发', 'p1') })
 
+    fireEvent.click(view.getByRole('button', { name: '新建任务' }))
     fireEvent.change(view.getByRole('textbox', { name: '任务内容' }), { target: { value: '继续实现' } })
-    fireEvent.change(view.getByRole('combobox', { name: '任务位置' }), { target: { value: 'p1' } })
-    fireEvent.change(view.getByRole('combobox', { name: '关联会话' }), { target: { value: SECOND_SESSION_ID } })
+    fireEvent.click(view.getByRole('radio', { name: '开发' }))
+    fireEvent.click(view.getByRole('button', { name: '选择关联对话' }))
+    expect(view.queryByRole('combobox', { name: '关联会话' })).toBeNull()
+    const sessionSearch = view.getByRole('searchbox', { name: '搜索对话' })
+    expect(document.activeElement).toBe(sessionSearch)
+    fireEvent.change(sessionSearch, { target: { value: '评审' } })
+    expect(view.queryByRole('button', { name: '关联对话：实现会话' })).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: '关联对话：评审会话' }))
+    const selectedSession = view.getByRole('button', { name: '选择关联对话，当前：评审会话' })
+    expect(document.activeElement).toBe(selectedSession)
     fireEvent.click(view.getByRole('button', { name: '添加任务' }))
 
     const task = Object.values(view.instance.getSnapshot().document.tasks)[0]
@@ -155,6 +239,71 @@ describe('work scheduler surface', () => {
     fireEvent.click(view.getByRole('button', { name: '打开会话：评审会话' }))
     expect(view.openSession).toHaveBeenCalledWith(SECOND_SESSION_ID)
     expect(view.queryByRole('dialog', { name: '工作调度' })).toBeNull()
+  })
+
+  it('closes task-creation layers in order and resets the draft', async () => {
+    const view = mountScheduler()
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
+
+    const taskTrigger = view.getByRole('button', { name: '新建任务' })
+    fireEvent.click(taskTrigger)
+    fireEvent.change(view.getByRole('textbox', { name: '任务内容' }), { target: { value: '未提交草稿' } })
+    const sessionTrigger = view.getByRole('button', { name: '选择关联对话' })
+    fireEvent.click(sessionTrigger)
+    const sessionSearch = view.getByRole('searchbox', { name: '搜索对话' })
+    expect(document.activeElement).toBe(sessionSearch)
+    fireEvent.change(sessionSearch, { target: { value: '评审' } })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(view.queryByRole('searchbox', { name: '搜索对话' })).toBeNull()
+    expect(view.getByRole('textbox', { name: '任务内容' })).toBeTruthy()
+    expect(document.activeElement).toBe(sessionTrigger)
+
+    fireEvent.click(view.getByRole('button', { name: '选择关联对话' }))
+    expect((view.getByRole('searchbox', { name: '搜索对话' }) as HTMLInputElement).value).toBe('')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(view.queryByRole('textbox', { name: '任务内容' })).toBeNull()
+    expect(view.getByRole('dialog', { name: '工作调度' })).toBeTruthy()
+    expect(document.activeElement).toBe(taskTrigger)
+
+    fireEvent.click(view.getByRole('button', { name: '新建任务' }))
+    expect((view.getByRole('textbox', { name: '任务内容' }) as HTMLTextAreaElement).value).toBe('')
+    expect((view.getByRole('radio', { name: '待分配' }) as HTMLInputElement).checked).toBe(true)
+    expect(view.getByRole('button', { name: '选择关联对话' })).toBeTruthy()
+  })
+
+  it('shows an accurate empty state when the Workspace has no linkable Sessions', async () => {
+    const view = mountScheduler({ workspaces: workspacesSnapshot([]) })
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
+
+    fireEvent.click(view.getByRole('button', { name: '新建任务' }))
+    fireEvent.click(view.getByRole('button', { name: '选择关联对话' }))
+
+    expect(view.getByText('当前工作区没有可关联对话')).toBeTruthy()
+    expect(view.queryByRole('combobox', { name: '关联会话' })).toBeNull()
+  })
+
+  it('drops a pending Session choice when it leaves the active Workspace', async () => {
+    const workspaces = workspacesSnapshot()
+    const view = mountScheduler({ workspaces })
+    fireEvent.click(view.getByRole('button', { name: '工作调度' }))
+    await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
+
+    fireEvent.click(view.getByRole('button', { name: '新建任务' }))
+    fireEvent.change(view.getByRole('textbox', { name: '任务内容' }), { target: { value: '重新确认关联' } })
+    fireEvent.click(view.getByRole('button', { name: '选择关联对话' }))
+    fireEvent.click(view.getByRole('button', { name: '关联对话：评审会话' }))
+
+    workspaces.items[0] = { ...workspaces.items[0]!, sessionIds: [SESSION_ID] }
+    act(() => { view.instance.actions.addProcess('触发刷新', 'p1') })
+    expect(view.getByRole('button', { name: '选择关联对话' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '添加任务' }))
+
+    const task = Object.values(view.instance.getSnapshot().document.tasks)[0]
+    expect(task?.sessionId).toBeUndefined()
   })
 
   it('marks a binding unavailable when its Session is outside the current Workspace', async () => {

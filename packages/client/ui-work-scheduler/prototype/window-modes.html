@@ -1,0 +1,761 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE: compare three Work Scheduler window presentations via ?variant=.
+  Question: which default scale and window/fullscreen interaction should replace the full-frame-only presentation?
+  The selected presentation also demonstrates the progressive task-creation editor.
+  One command: open packages/client/ui-work-scheduler/prototype/window-modes.html
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Work Scheduler Window Modes Prototype</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg-app: #f3f5f8;
+      --bg-base: #ffffff;
+      --bg-subtle: #f7f8fa;
+      --bg-muted: #eef1f5;
+      --text: #20242c;
+      --text-secondary: #606875;
+      --text-caption: #9299a6;
+      --border: #dfe3e9;
+      --border-strong: #cbd1da;
+      --blue: #3977e9;
+      --green: #20a66a;
+      --amber: #c48718;
+      --red: #d14949;
+      --mask: rgba(24, 30, 41, .42);
+      --shadow: 0 24px 70px rgba(23, 31, 45, .22), 0 3px 12px rgba(23, 31, 45, .12);
+    }
+
+    * { box-sizing: border-box; letter-spacing: 0; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: var(--bg-app); color: var(--text); font-size: 14px; }
+    button, input, textarea { font: inherit; letter-spacing: 0; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+      background: var(--bg-app);
+    }
+
+    .appSidebar {
+      min-width: 0;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--bg-base);
+    }
+
+    .brand { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px; font-weight: 700; }
+    .brandMark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: #171b22; color: white; font-size: 11px; }
+    .appNav { margin-top: 18px; display: grid; gap: 4px; }
+    .appNav button, .schedulerTrigger { width: 100%; height: 36px; padding: 0 10px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; background: transparent; text-align: left; cursor: pointer; }
+    .appNav button[data-active="true"], .appNav button:hover, .schedulerTrigger:hover { background: var(--bg-muted); }
+    .schedulerTrigger { margin-top: auto; }
+
+    .conversation { min-width: 0; display: flex; flex-direction: column; }
+    .conversationHeader { height: 58px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--bg-base); }
+    .conversationHeader strong { display: block; font-size: 15px; }
+    .conversationHeader span { display: block; margin-top: 3px; color: var(--text-caption); font-size: 11px; }
+    .connection { display: inline-flex !important; align-items: center; gap: 6px; color: var(--green) !important; }
+    .connection::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .conversationBody { min-height: 0; flex: 1; overflow: auto; padding: 44px max(28px, calc((100% - 780px) / 2)); }
+    .message { max-width: 760px; margin: 0 auto 18px; padding: 16px 18px; border-left: 3px solid var(--blue); background: var(--bg-base); line-height: 1.6; }
+    .message[data-kind="assistant"] { border-left-color: var(--green); }
+    .message small { display: block; margin-bottom: 5px; color: var(--text-caption); }
+    .toast { position: fixed; top: 18px; left: 50%; z-index: 130; transform: translateX(-50%); min-height: 36px; padding: 8px 14px; display: none; align-items: center; border: 1px solid var(--border-strong); border-radius: 7px; background: #171b22; color: white; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+    .toast[data-open="true"] { display: flex; }
+
+    .modalLayer {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: var(--mask);
+    }
+
+    .modalLayer[hidden] { display: none; }
+
+    .schedulerWindow {
+      position: absolute;
+      min-width: min(760px, calc(100vw - 32px));
+      min-height: min(560px, calc(100vh - 32px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--bg-base);
+      box-shadow: var(--shadow);
+    }
+
+    .variant-resizable .schedulerWindow { top: 7vh; left: 4vw; width: 92vw; height: 86vh; }
+    .variant-compact .schedulerWindow { top: 50%; left: 50%; width: min(1080px, 86vw); height: min(720px, 78vh); transform: translate(-50%, -50%); }
+    .variant-maximized:not(.mode-fullscreen) .schedulerWindow { top: 7vh; left: 4vw; width: 92vw; height: 86vh; }
+
+    .modalLayer.mode-fullscreen { background: transparent; }
+    .modalLayer.mode-fullscreen .schedulerWindow {
+      top: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0;
+      min-height: 0;
+      transform: none !important;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .windowHeader {
+      min-height: 64px;
+      padding: 10px 16px 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-base);
+    }
+
+    .windowTitle { min-width: 0; }
+    .windowTitle h1 { margin: 0; font-size: 18px; line-height: 1.2; }
+    .windowTitle p { margin: 4px 0 0; overflow: hidden; color: var(--text-caption); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .headerActions { display: flex; align-items: center; gap: 6px; }
+    .iconButton, .textButton {
+      height: 32px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--bg-base);
+      cursor: pointer;
+    }
+    .iconButton { width: 32px; padding: 0; font-size: 18px; line-height: 1; }
+    .textButton { padding: 0 9px; font-size: 12px; }
+    .iconButton:hover, .textButton:hover { border-color: var(--border-strong); background: var(--bg-subtle); }
+
+    .commandBar {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-subtle);
+    }
+    .commandRow { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .processForm { min-width: 260px; max-width: 560px; flex: 1; display: flex; gap: 7px; }
+    .processForm input { min-width: 0; height: 34px; flex: 1; border: 1px solid var(--border-strong); border-radius: 7px; padding: 0 10px; background: var(--bg-base); color: var(--text); }
+    .primaryButton { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 7px; background: var(--blue); color: white; white-space: nowrap; cursor: pointer; }
+    .secondaryButton { height: 34px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--bg-base); white-space: nowrap; cursor: pointer; }
+    .taskCreateTrigger[aria-expanded="true"] { border: 1px solid var(--blue); background: var(--bg-base); color: var(--blue); }
+    .taskComposer { margin-top: 10px; padding-top: 12px; display: grid; gap: 12px; border-top: 1px solid var(--border); }
+    .taskComposer[hidden], .sessionPicker[hidden] { display: none; }
+    .composerHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .composerHeader h2 { margin: 0; font-size: 15px; }
+    .composerClose { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+    .composerClose:hover, .cancelTask:hover { background: var(--bg-muted); }
+    .taskContentField { min-width: 0; display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+    .taskContentField textarea { width: 100%; min-height: 66px; max-height: 132px; resize: vertical; border: 1px solid var(--border-strong); border-radius: 7px; padding: 9px 10px; background: var(--bg-base); color: var(--text); font-weight: 400; line-height: 1.45; }
+    .composerMeta { min-width: 0; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(240px, .65fr); align-items: start; gap: 14px; }
+    .destinationField { min-width: 0; margin: 0; padding: 0; border: 0; }
+    .destinationField legend, .fieldLabel { margin: 0 0 6px; color: var(--text-secondary); font-size: 12px; font-style: normal; font-weight: 600; }
+    .fieldLabel { display: block; }
+    .fieldLabel em { color: var(--text-caption); font-size: 11px; font-style: normal; font-weight: 400; }
+    .destinationRail { min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding: 0 0 4px; }
+    .destinationOption { position: relative; flex: 0 0 auto; cursor: pointer; }
+    .destinationOption input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .destinationOption span { max-width: 180px; height: 34px; display: flex; align-items: center; gap: 7px; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px 0 8px; background: var(--bg-base); color: var(--text-secondary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .destinationOption span::before { content: ""; width: 3px; height: 16px; flex: none; border-radius: 2px; background: var(--border-strong); }
+    .destinationOption:hover span { background: var(--bg-muted); }
+    .destinationOption input:checked + span { border-color: var(--blue); background: #edf3ff; color: var(--text); }
+    .destinationOption input:checked + span::before { background: var(--blue); }
+    .destinationOption input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .sessionField { min-width: 0; }
+    .sessionTrigger { width: 100%; height: 34px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; border: 1px solid var(--border-strong); border-radius: 7px; padding: 0 9px; background: var(--bg-base); color: var(--text-secondary); cursor: pointer; }
+    .sessionTrigger span { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+    .sessionPicker { margin-top: 6px; padding: 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-base); box-shadow: 0 8px 22px rgba(23, 31, 45, .13); }
+    .sessionSearch { height: 32px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 8px; color: var(--text-caption); }
+    .sessionSearch:focus-within { border-color: var(--blue); }
+    .sessionSearch input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12px; }
+    .sessionOptions { max-height: 126px; margin-top: 5px; overflow: auto; }
+    .sessionOption { width: 100%; min-height: 30px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; border: 0; border-radius: 5px; padding: 5px 7px; background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
+    .sessionOption[hidden] { display: none; }
+    .sessionOption:hover, .sessionOption[data-selected="true"] { background: var(--bg-muted); color: var(--text); }
+    .sessionOption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sessionOption small { color: var(--blue); font-size: 10px; }
+    .sessionEmpty { display: none; margin: 0; padding: 14px 8px; color: var(--text-caption); font-size: 12px; text-align: center; }
+    .composerActions { display: flex; justify-content: flex-end; gap: 7px; }
+    .cancelTask { height: 34px; border: 0; border-radius: 7px; padding: 0 12px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+
+    .schedulerWorkspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 288px; }
+    .board { min-width: 0; overflow: auto; padding: 14px 16px 24px; display: flex; align-items: flex-start; gap: 10px; background: var(--bg-app); }
+    .lane { width: 270px; flex: 0 0 270px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-base); }
+    .laneHeader { height: 48px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .laneHeader strong { font-size: 14px; }
+    .laneHeader span { color: var(--text-caption); font-size: 11px; }
+    .taskList { min-height: 116px; padding: 8px; display: grid; gap: 7px; }
+    .emptyLane { min-height: 100px; display: grid; place-items: center; color: var(--text-caption); font-size: 12px; }
+
+    .task {
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--blue);
+      border-radius: 7px;
+      background: var(--bg-subtle);
+    }
+    .task[data-status="running"] { border-left-color: var(--green); }
+    .taskTop { display: flex; justify-content: space-between; gap: 8px; color: var(--text-caption); font-size: 11px; }
+    .taskName { margin: 8px 0; font-size: 14px; line-height: 1.4; }
+    .sessionLink { max-width: 100%; margin: 0 0 7px; padding: 0; display: inline-flex; align-items: center; gap: 5px; overflow: hidden; border: 0; background: transparent; color: var(--blue); cursor: pointer; font-size: 11px; }
+    .sessionLink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .taskActions { height: 29px; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+    .taskActions button { min-width: 28px; height: 27px; padding: 0 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-base); cursor: pointer; font-size: 11px; }
+
+    .inspector { min-width: 0; overflow: auto; padding: 12px; border-left: 1px solid var(--border); background: var(--bg-base); }
+    .inspectorSection { padding: 4px 0 14px; border-bottom: 1px solid var(--border); }
+    .inspectorSection h2 { margin: 7px 0; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+    .inspectorSection h2 span { color: var(--text-caption); font-weight: 400; }
+    .nextItem, .sideItem { padding: 8px; display: flex; gap: 8px; border-radius: 6px; background: var(--bg-subtle); font-size: 12px; }
+    .nextItem { align-items: flex-start; flex-direction: column; }
+    .nextItem span { color: var(--blue); }
+    .sideItem { align-items: center; justify-content: space-between; }
+    .sideItem button { border: 0; background: transparent; color: var(--blue); cursor: pointer; }
+
+    .variant-compact .schedulerWorkspace { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 132px; }
+    .variant-compact .inspector { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 12px; overflow: auto; border-top: 1px solid var(--border); border-left: 0; }
+    .variant-compact .inspectorSection { min-width: 170px; border-bottom: 0; border-right: 1px solid var(--border); padding-right: 12px; }
+    .variant-compact .lane { width: 245px; flex-basis: 245px; }
+
+    .resizeHandle {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      z-index: 5;
+      width: 22px;
+      height: 22px;
+      display: none;
+      cursor: nwse-resize;
+      touch-action: none;
+    }
+    .resizeHandle::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 8px; height: 8px; border-right: 2px solid #858d9a; border-bottom: 2px solid #858d9a; }
+    .variant-resizable:not(.mode-fullscreen) .resizeHandle { display: block; }
+
+    .helpPanel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 4;
+      width: min(360px, 92%);
+      padding: 20px;
+      display: none;
+      border-left: 1px solid var(--border);
+      background: var(--bg-base);
+      box-shadow: -12px 0 32px rgba(23, 31, 45, .13);
+    }
+    .helpPanel[data-open="true"] { display: block; }
+    .helpPanelHeader { display: flex; align-items: center; justify-content: space-between; }
+    .helpPanel h2 { margin: 0; font-size: 17px; }
+    .helpPanel ol { margin: 28px 0 0; padding-left: 20px; }
+    .helpPanel li { padding: 0 0 18px 6px; }
+    .helpPanel li span { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+
+    .prototypeSwitcher {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 200;
+      min-width: 360px;
+      height: 48px;
+      padding: 5px;
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) 38px;
+      align-items: center;
+      transform: translateX(-50%);
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 8px;
+      background: #171b22;
+      color: white;
+      box-shadow: 0 12px 28px rgba(0,0,0,.28);
+    }
+    .prototypeSwitcher button { width: 36px; height: 36px; border: 0; border-radius: 6px; background: transparent; color: white; cursor: pointer; font-size: 20px; }
+    .prototypeSwitcher button:hover { background: rgba(255,255,255,.1); }
+    .variantState { min-width: 0; text-align: center; }
+    .variantState strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .variantState span { display: block; margin-top: 2px; overflow: hidden; color: #aeb5c0; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+    @media (max-width: 980px) { .schedulerWorkspace { grid-template-columns: minmax(0, 1fr) 250px; } }
+
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      .appSidebar { display: none; }
+      .modalLayer { background: transparent; }
+      .schedulerWindow, .variant-resizable .schedulerWindow, .variant-compact .schedulerWindow, .variant-maximized .schedulerWindow {
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0;
+        min-height: 0;
+        transform: none !important;
+        border: 0;
+        border-radius: 0;
+      }
+      .fullscreenButton, .resizeHandle { display: none !important; }
+      .windowHeader { min-height: 58px; padding: 8px 10px; }
+      .windowTitle h1 { font-size: 16px; }
+      .headerActions { gap: 3px; }
+      .textButton { display: none; }
+      .commandBar { padding: 8px 10px; }
+      .commandBar[data-composer-open] { max-height: 68vh; overflow-y: auto; overscroll-behavior: contain; }
+      .commandRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+      .processForm { min-width: 0; }
+      .processForm button, .taskCreateTrigger { padding: 0 9px; }
+      .composerMeta { grid-template-columns: 1fr; gap: 10px; }
+      .taskContentField textarea { min-height: 58px; }
+      .sessionOptions { max-height: 112px; }
+      .schedulerWorkspace, .variant-compact .schedulerWorkspace { grid-template-columns: 1fr; grid-template-rows: minmax(55vh, 1fr) auto; overflow: auto; }
+      .inspector, .variant-compact .inspector { min-height: 180px; display: block; border-top: 1px solid var(--border); border-left: 0; }
+      .variant-compact .inspectorSection { border-right: 0; border-bottom: 1px solid var(--border); }
+      .lane, .variant-compact .lane { width: min(78vw, 270px); flex-basis: min(78vw, 270px); }
+      .prototypeSwitcher { min-width: min(350px, calc(100vw - 20px)); bottom: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" aria-hidden="false">
+    <aside class="appSidebar">
+      <div class="brand"><span class="brandMark">DSH</span><span>DeepSeek Harness</span></div>
+      <nav class="appNav" aria-label="主导航">
+        <button type="button" data-active="true"><span>◫</span><span>对话</span></button>
+        <button type="button"><span>⌘</span><span>命令</span></button>
+        <button type="button"><span>⚙</span><span>设置</span></button>
+      </nav>
+      <button type="button" class="schedulerTrigger" id="openScheduler"><span>☷</span><span>工作调度</span></button>
+    </aside>
+
+    <main class="conversation">
+      <header class="conversationHeader">
+        <div><strong id="conversationTitle">自动化测试怎么做</strong><span>deepseek-harness</span></div>
+        <span class="connection">已连接</span>
+      </header>
+      <section class="conversationBody" id="conversationBody">
+        <article class="message"><small>你</small>自动化测试怎么做</article>
+        <article class="message" data-kind="assistant"><small>助手</small>可以从可重复的关键路径开始，先划分组件行为和真实 Web 组合场景，再把每个回归固定到最窄的测试层级。</article>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modalLayer variant-resizable" id="modalLayer">
+    <section class="schedulerWindow" id="schedulerWindow" role="dialog" aria-modal="true" aria-label="工作调度">
+      <header class="windowHeader">
+        <div class="windowTitle"><h1>工作调度</h1><p>deepseek-harness · 1 个线程可以继续推进</p></div>
+        <div class="headerActions">
+          <button type="button" class="iconButton" id="helpButton" title="使用说明" aria-label="使用说明">?</button>
+          <button type="button" class="iconButton" data-toast="已生成原型导出" title="导出" aria-label="导出">⇩</button>
+          <button type="button" class="textButton" data-toast="原型不读取本地文件" title="导入">导入</button>
+          <button type="button" class="iconButton fullscreenButton" id="fullscreenButton" title="全屏" aria-label="全屏" aria-pressed="false">⛶</button>
+          <button type="button" class="iconButton" id="closeScheduler" title="关闭" aria-label="关闭">×</button>
+        </div>
+      </header>
+
+      <div class="commandBar" id="commandBar">
+        <div class="commandRow">
+          <form class="processForm"><input aria-label="线程名称" placeholder="线程名称"><button type="button" class="secondaryButton" data-toast="已添加原型线程">＋ 新建线程</button></form>
+          <button type="button" class="primaryButton taskCreateTrigger" id="taskCreateTrigger" aria-expanded="false" aria-controls="taskComposer">＋ 新建任务</button>
+        </div>
+
+        <form class="taskComposer" id="taskComposer" hidden>
+          <div class="composerHeader"><h2>新建任务</h2><button type="button" class="composerClose" id="closeTaskComposer" title="取消新建任务" aria-label="取消新建任务">×</button></div>
+          <label class="taskContentField"><span>任务内容</span><textarea id="taskContent" rows="2" placeholder="描述要推进的工作" required></textarea></label>
+
+          <div class="composerMeta">
+            <fieldset class="destinationField">
+              <legend>放入</legend>
+              <div class="destinationRail">
+                <label class="destinationOption"><input type="radio" name="prototype-task-process" value="backlog" checked><span>待分配</span></label>
+                <label class="destinationOption"><input type="radio" name="prototype-task-process" value="requirements"><span>需求分析</span></label>
+                <label class="destinationOption"><input type="radio" name="prototype-task-process" value="design"><span>软件设计</span></label>
+                <label class="destinationOption"><input type="radio" name="prototype-task-process" value="implementation"><span>软件编码</span></label>
+                <label class="destinationOption"><input type="radio" name="prototype-task-process" value="test"><span>软件自测</span></label>
+              </div>
+            </fieldset>
+
+            <div class="sessionField">
+              <span class="fieldLabel">关联对话 <em>可选</em></span>
+              <button type="button" class="sessionTrigger" id="sessionTrigger" aria-label="选择关联对话" aria-expanded="false" aria-controls="sessionPicker"><span aria-hidden="true">↗</span><span id="selectedSessionLabel">不关联对话</span><span aria-hidden="true">⌄</span></button>
+              <div class="sessionPicker" id="sessionPicker" hidden>
+                <label class="sessionSearch"><span aria-hidden="true">⌕</span><input type="search" id="sessionSearch" aria-label="搜索对话" placeholder="搜索对话"></label>
+                <div class="sessionOptions" aria-label="可关联对话">
+                  <button type="button" class="sessionOption" data-session-choice="" data-title="不关联对话" data-selected="true"><span>不关联对话</span></button>
+                  <button type="button" class="sessionOption" data-session-choice="current" data-title="自动化测试怎么做"><span>自动化测试怎么做</span><small>当前</small></button>
+                  <button type="button" class="sessionOption" data-session-choice="review" data-title="工作调度交互评审"><span>工作调度交互评审</span></button>
+                  <button type="button" class="sessionOption" data-session-choice="release" data-title="整理发布前的验证结果"><span>整理发布前的验证结果</span></button>
+                  <p class="sessionEmpty" id="sessionEmpty">没有匹配的对话</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composerActions"><button type="button" class="cancelTask" id="cancelTask">取消</button><button type="submit" class="primaryButton">＋ 添加任务</button></div>
+        </form>
+      </div>
+
+      <div class="schedulerWorkspace">
+        <main class="board" aria-label="线程看板">
+          <section class="lane">
+            <header class="laneHeader"><strong>需求分析</strong><span>2 项</span></header>
+            <div class="taskList">
+              <article class="task">
+                <div class="taskTop"><span>#1</span><span>就绪</span></div>
+                <div class="taskName">自动化测试</div>
+                <button type="button" class="sessionLink" data-session="自动化测试怎么做"><span>↗</span><span>自动化测试怎么做</span></button>
+                <div class="taskActions"><button type="button" title="开始">▶</button><button type="button" title="同步阻塞">Ⅱ</button><button type="button" title="异步阻塞">异步</button><button type="button" title="完成">✓</button></div>
+              </article>
+              <article class="task" data-status="running">
+                <div class="taskTop"><span>#2</span><span>进行中</span></div>
+                <div class="taskName">bomp 日志备份</div>
+                <div class="taskActions"><button type="button" title="同步阻塞">Ⅱ</button><button type="button" title="异步阻塞">异步</button><button type="button" title="完成">✓</button></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="lane">
+            <header class="laneHeader"><strong>软件设计</strong><span>1 项</span></header>
+            <div class="taskList">
+              <article class="task">
+                <div class="taskTop"><span>#1</span><span>就绪</span></div>
+                <div class="taskName">确认弹窗窗口模式</div>
+                <div class="taskActions"><button type="button" title="开始">▶</button><button type="button" title="同步阻塞">Ⅱ</button><button type="button" title="完成">✓</button></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="lane">
+            <header class="laneHeader"><strong>软件编码</strong><span>0 项</span></header>
+            <div class="emptyLane">空线程</div>
+          </section>
+
+          <section class="lane">
+            <header class="laneHeader"><strong>软件自测</strong><span>0 项</span></header>
+            <div class="emptyLane">空线程</div>
+          </section>
+        </main>
+
+        <aside class="inspector">
+          <section class="inspectorSection"><h2>下一步</h2><div class="nextItem"><span>需求分析</span><strong>自动化测试</strong></div></section>
+          <section class="inspectorSection"><h2>待分配 <span>0</span></h2></section>
+          <section class="inspectorSection"><h2>异步阻塞 <span>0</span></h2></section>
+          <section class="inspectorSection"><h2>▣ 归档 <span>1</span></h2><div class="sideItem"><span>分析下本地模型</span><button type="button">恢复</button></div></section>
+        </aside>
+      </div>
+
+      <aside class="helpPanel" id="helpPanel">
+        <div class="helpPanelHeader"><h2>如何使用</h2><button type="button" class="iconButton" id="closeHelp" title="关闭说明" aria-label="关闭说明">×</button></div>
+        <ol><li><strong>建立线程</strong><span>按一个可独立推进的工作方向命名。</span></li><li><strong>按顺序添加任务</strong><span>每条线程突出最前面的可执行任务。</span></li><li><strong>选择阻塞方式</strong><span>同步阻塞暂停本线程，异步阻塞移到右侧。</span></li></ol>
+      </aside>
+
+      <div class="resizeHandle" id="resizeHandle" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="prototypeSwitcher" aria-label="原型变体">
+    <button type="button" id="previousVariant" title="上一个变体" aria-label="上一个变体">←</button>
+    <div class="variantState" aria-live="polite"><strong id="variantLabel"></strong><span id="windowState"></span></div>
+    <button type="button" id="nextVariant" title="下一个变体" aria-label="下一个变体">→</button>
+  </div>
+
+  <script>
+    const variants = [
+      { key: 'compact', code: 'A', name: '紧凑窗口' },
+      { key: 'resizable', code: 'B', name: '可缩放窗口（推荐）' },
+      { key: 'maximized', code: 'C', name: '最大化基线' },
+    ]
+
+    const modalLayer = document.querySelector('#modalLayer')
+    const schedulerWindow = document.querySelector('#schedulerWindow')
+    const fullscreenButton = document.querySelector('#fullscreenButton')
+    const variantLabel = document.querySelector('#variantLabel')
+    const windowState = document.querySelector('#windowState')
+    const helpPanel = document.querySelector('#helpPanel')
+    const toast = document.querySelector('#toast')
+    const commandBar = document.querySelector('#commandBar')
+    const taskCreateTrigger = document.querySelector('#taskCreateTrigger')
+    const taskComposer = document.querySelector('#taskComposer')
+    const taskContent = document.querySelector('#taskContent')
+    const sessionTrigger = document.querySelector('#sessionTrigger')
+    const sessionPicker = document.querySelector('#sessionPicker')
+    const sessionSearch = document.querySelector('#sessionSearch')
+    const sessionOptions = [...document.querySelectorAll('[data-session-choice]')]
+    const sessionEmpty = document.querySelector('#sessionEmpty')
+    const selectedSessionLabel = document.querySelector('#selectedSessionLabel')
+    let current = variants.find(item => item.key === new URL(window.location.href).searchParams.get('variant')) ?? variants[1]
+    let fullscreen = current.key === 'maximized'
+    let restoreGeometry = null
+    let toastTimer
+
+    function showToast(message) {
+      toast.textContent = message
+      toast.dataset.open = 'true'
+      window.clearTimeout(toastTimer)
+      toastTimer = window.setTimeout(() => { toast.dataset.open = 'false' }, 1800)
+    }
+
+    function filterSessions() {
+      const query = sessionSearch.value.trim().toLocaleLowerCase()
+      let visible = 0
+      sessionOptions.forEach(option => {
+        const matches = query === '' || (option.dataset.sessionChoice !== '' && option.dataset.title.toLocaleLowerCase().includes(query))
+        option.hidden = !matches
+        if (matches) visible += 1
+      })
+      sessionEmpty.style.display = visible === 0 ? 'block' : 'none'
+    }
+
+    function setSessionPickerOpen(open) {
+      sessionPicker.hidden = !open
+      sessionTrigger.setAttribute('aria-expanded', String(open))
+      if (!open) {
+        sessionSearch.value = ''
+        filterSessions()
+        sessionTrigger.focus()
+      } else {
+        window.requestAnimationFrame(() => { sessionSearch.focus() })
+      }
+    }
+
+    function resetTaskComposer() {
+      taskComposer.reset()
+      taskComposer.hidden = true
+      commandBar.removeAttribute('data-composer-open')
+      taskCreateTrigger.setAttribute('aria-expanded', 'false')
+      setSessionPickerOpen(false)
+      sessionOptions.forEach(option => { option.dataset.selected = String(option.dataset.sessionChoice === '') })
+      selectedSessionLabel.textContent = '不关联对话'
+      sessionTrigger.setAttribute('aria-label', '选择关联对话')
+      taskCreateTrigger.focus()
+    }
+
+    function setTaskComposerOpen(open) {
+      if (!open) {
+        resetTaskComposer()
+        return
+      }
+      taskComposer.hidden = false
+      commandBar.dataset.composerOpen = 'true'
+      taskCreateTrigger.setAttribute('aria-expanded', 'true')
+      window.requestAnimationFrame(() => { taskContent.focus() })
+    }
+
+    function clearGeometry() {
+      schedulerWindow.style.top = ''
+      schedulerWindow.style.left = ''
+      schedulerWindow.style.width = ''
+      schedulerWindow.style.height = ''
+      schedulerWindow.style.transform = ''
+      restoreGeometry = null
+    }
+
+    function updateMode() {
+      modalLayer.classList.toggle('mode-fullscreen', fullscreen)
+      fullscreenButton.textContent = fullscreen ? '❐' : '⛶'
+      fullscreenButton.title = fullscreen ? '还原' : '全屏'
+      fullscreenButton.setAttribute('aria-label', fullscreen ? '还原' : '全屏')
+      fullscreenButton.setAttribute('aria-pressed', String(fullscreen))
+      updateWindowState()
+    }
+
+    function resetPresentation() {
+      clearGeometry()
+      fullscreen = current.key === 'maximized'
+      helpPanel.dataset.open = 'false'
+      resetTaskComposer()
+      updateMode()
+    }
+
+    function updateWindowState() {
+      if (modalLayer.hidden) {
+        windowState.textContent = '弹窗已关闭 · 重新打开将恢复默认尺寸'
+        return
+      }
+      const bounds = schedulerWindow.getBoundingClientRect()
+      const mode = window.innerWidth <= 760 || fullscreen ? '全屏' : '窗口'
+      windowState.textContent = `${Math.round(bounds.width)} × ${Math.round(bounds.height)} · ${mode}`
+    }
+
+    function applyVariant(next, updateUrl = true) {
+      current = next
+      modalLayer.classList.remove(...variants.map(item => `variant-${item.key}`))
+      modalLayer.classList.add(`variant-${current.key}`)
+      modalLayer.hidden = false
+      variantLabel.textContent = `原型 ${current.code} · ${current.name}`
+      resetPresentation()
+      if (updateUrl) {
+        const url = new URL(window.location.href)
+        url.searchParams.set('variant', current.key)
+        window.history.replaceState({}, '', url)
+      }
+      window.requestAnimationFrame(updateWindowState)
+    }
+
+    function closeScheduler(message = '工作调度已关闭') {
+      modalLayer.hidden = true
+      helpPanel.dataset.open = 'false'
+      resetTaskComposer()
+      updateWindowState()
+      showToast(message)
+    }
+
+    function openScheduler() {
+      modalLayer.hidden = false
+      resetPresentation()
+      window.requestAnimationFrame(() => {
+        updateWindowState()
+        document.querySelector('#closeScheduler').focus()
+      })
+    }
+
+    fullscreenButton.addEventListener('click', () => {
+      if (!fullscreen) {
+        const bounds = schedulerWindow.getBoundingClientRect()
+        restoreGeometry = { top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height }
+        fullscreen = true
+      } else {
+        fullscreen = false
+        modalLayer.classList.remove('mode-fullscreen')
+        const geometry = restoreGeometry
+        if (geometry !== null) {
+          schedulerWindow.style.top = `${geometry.top}px`
+          schedulerWindow.style.left = `${geometry.left}px`
+          schedulerWindow.style.width = `${geometry.width}px`
+          schedulerWindow.style.height = `${geometry.height}px`
+          schedulerWindow.style.transform = 'none'
+        } else {
+          clearGeometry()
+        }
+      }
+      updateMode()
+      fullscreenButton.focus()
+    })
+
+    document.querySelector('#closeScheduler').addEventListener('click', () => { closeScheduler() })
+    document.querySelector('#openScheduler').addEventListener('click', openScheduler)
+    document.querySelector('#helpButton').addEventListener('click', () => { helpPanel.dataset.open = String(helpPanel.dataset.open !== 'true') })
+    document.querySelector('#closeHelp').addEventListener('click', () => { helpPanel.dataset.open = 'false' })
+    document.querySelector('.processForm').addEventListener('submit', event => { event.preventDefault(); showToast('已添加原型线程') })
+    taskCreateTrigger.addEventListener('click', () => { setTaskComposerOpen(taskComposer.hidden) })
+    document.querySelector('#closeTaskComposer').addEventListener('click', resetTaskComposer)
+    document.querySelector('#cancelTask').addEventListener('click', resetTaskComposer)
+    sessionTrigger.addEventListener('click', () => { setSessionPickerOpen(sessionPicker.hidden) })
+    sessionSearch.addEventListener('input', filterSessions)
+    sessionOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        sessionOptions.forEach(candidate => { candidate.dataset.selected = 'false' })
+        option.dataset.selected = 'true'
+        selectedSessionLabel.textContent = option.dataset.title
+        sessionTrigger.setAttribute('aria-label', option.dataset.sessionChoice === '' ? '选择关联对话' : `选择关联对话，当前：${option.dataset.title}`)
+        setSessionPickerOpen(false)
+      })
+    })
+    taskComposer.addEventListener('submit', event => {
+      event.preventDefault()
+      if (taskContent.value.trim() === '') {
+        taskContent.focus()
+        return
+      }
+      showToast(`已添加原型任务：${taskContent.value.trim()}`)
+      resetTaskComposer()
+    })
+
+    document.querySelectorAll('[data-session]').forEach(button => {
+      button.addEventListener('click', () => {
+        const title = button.dataset.session
+        document.querySelector('#conversationTitle').textContent = title
+        document.querySelector('#conversationBody').innerHTML = `<article class="message"><small>你</small>${title}</article><article class="message" data-kind="assistant"><small>助手</small>已从工作调度打开关联会话，工作调度弹窗已关闭。</article>`
+        closeScheduler(`已打开会话：${title}`)
+      })
+    })
+
+    document.querySelectorAll('[data-toast]').forEach(button => {
+      button.addEventListener('click', () => { showToast(button.dataset.toast) })
+    })
+
+    function cycleVariant(direction) {
+      const index = variants.findIndex(item => item.key === current.key)
+      applyVariant(variants[(index + direction + variants.length) % variants.length])
+    }
+
+    document.querySelector('#previousVariant').addEventListener('click', () => { cycleVariant(-1) })
+    document.querySelector('#nextVariant').addEventListener('click', () => { cycleVariant(1) })
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !modalLayer.hidden) {
+        if (!sessionPicker.hidden) setSessionPickerOpen(false)
+        else if (!taskComposer.hidden) resetTaskComposer()
+        else closeScheduler()
+        return
+      }
+      const tag = event.target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target.isContentEditable) return
+      if (event.key === 'ArrowLeft') cycleVariant(-1)
+      if (event.key === 'ArrowRight') cycleVariant(1)
+    })
+
+    document.querySelector('#resizeHandle').addEventListener('pointerdown', event => {
+      if (current.key !== 'resizable' || fullscreen || window.innerWidth <= 760) return
+      event.preventDefault()
+      const start = schedulerWindow.getBoundingClientRect()
+      const startX = event.clientX
+      const startY = event.clientY
+      schedulerWindow.style.top = `${start.top}px`
+      schedulerWindow.style.left = `${start.left}px`
+      schedulerWindow.style.width = `${start.width}px`
+      schedulerWindow.style.height = `${start.height}px`
+      schedulerWindow.style.transform = 'none'
+
+      const move = pointerEvent => {
+        const minWidth = Math.min(760, window.innerWidth - 32)
+        const minHeight = Math.min(560, window.innerHeight - 32)
+        const maxWidth = window.innerWidth - start.left - 16
+        const maxHeight = window.innerHeight - start.top - 16
+        const width = Math.min(maxWidth, Math.max(minWidth, start.width + pointerEvent.clientX - startX))
+        const height = Math.min(maxHeight, Math.max(minHeight, start.height + pointerEvent.clientY - startY))
+        schedulerWindow.style.width = `${width}px`
+        schedulerWindow.style.height = `${height}px`
+        updateWindowState()
+      }
+
+      const finish = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', finish)
+        window.removeEventListener('pointercancel', finish)
+      }
+
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', finish)
+      window.addEventListener('pointercancel', finish)
+    })
+
+    const resizeObserver = new ResizeObserver(updateWindowState)
+    resizeObserver.observe(schedulerWindow)
+    window.addEventListener('resize', updateWindowState)
+    applyVariant(current, false)
+  </script>
+</body>
+</html>

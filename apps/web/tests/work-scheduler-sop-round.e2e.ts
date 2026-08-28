@@ -10,12 +10,15 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-work-scheduler-store'
 import type {} from '@deepseek-ai/dsh-workspace'
 import {
-  assertFixtureInventory, fixtureUserPrompts, launchWebScaffold, watchConsole, type WebScaffold,
+  assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/work-scheduler-sop-round', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('./snapshots/work-scheduler-sop-round/session.jsonl', import.meta.url))
+const UI_EXPECTED = fileURLToPath(new URL('./snapshots/work-scheduler-sop-round/ui.expected.md', import.meta.url))
+const MODE = webSnapshotMode()
 const PROMPT = 'Use sync_work_scheduler exactly once with workflow "Development SOP" and stages intake completed, implement in_progress, and verify pending. Use names Intake, Implementation, and Verification. Then reply exactly SOP_SYNC_DONE and stop.'
 
 describe('web e2e: SOP stages synchronize into the Workspace board', () => {
@@ -76,7 +79,7 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     expect(document.archiveIds).toEqual([`sop:${sessionId}:intake`])
   }, 120_000)
 
-  it('opens the bound Session from the scheduler after navigating away', async () => {
+  it('opens windowed, changes display modes, and follows the bound Session', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-work-scheduler-session-link'))
     await page.getByRole('button', { name: /^(?:New session|新.*会话)$/ }).last().click()
     await page.getByText('Into the Unknown', { exact: false }).waitFor({ timeout: 15_000 })
@@ -85,13 +88,62 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     const dialog = page.getByRole('dialog', { name: '工作调度' })
     await dialog.waitFor({ timeout: 10_000 })
     await dialog.getByText('Implementation', { exact: true }).first().waitFor({ timeout: 10_000 })
+    const desktopViewport = page.viewportSize()!
+    const windowed = await dialog.boundingBox()
+    expect(windowed).not.toBeNull()
+    expect(windowed!.width).toBeCloseTo(desktopViewport.width * 0.92, 0)
+    expect(windowed!.height).toBeCloseTo(desktopViewport.height * 0.86, 0)
+    expect(windowed!.x).toBeGreaterThan(0)
+    expect(windowed!.y).toBeGreaterThan(0)
+
+    await dialog.getByRole('button', { name: '新建任务' }).click()
+    await dialog.getByRole('textbox', { name: '任务内容' }).fill('校验新建任务体验')
+    await dialog.getByRole('button', { name: '选择关联对话' }).click()
+    await dialog.getByRole('searchbox', { name: '搜索对话' }).waitFor()
+    const composerSnapshot = await captureStableAria(
+      page,
+      '[role="dialog"][aria-label="工作调度"]',
+      scaffold.workspaceCwd,
+    )
+    await compareOrRefreshGolden(UI_EXPECTED, composerSnapshot, MODE)
+    await dialog.getByText('当前', { exact: true }).click()
+    await dialog.getByRole('button', { name: '添加任务' }).click()
+    await dialog.getByText('校验新建任务体验', { exact: true }).waitFor()
+    expect(await dialog.locator('select[aria-label="关联会话"]').count()).toBe(0)
+
+    await dialog.getByRole('button', { name: '全屏' }).click()
+    const fullscreen = await dialog.boundingBox()
+    expect(fullscreen).toEqual({ x: 0, y: 0, width: desktopViewport.width, height: desktopViewport.height })
+    await dialog.getByRole('button', { name: '还原' }).click()
+    const restored = await dialog.boundingBox()
+    expect(restored).toEqual(windowed)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    const mobile = await dialog.boundingBox()
+    expect(mobile).toEqual({ x: 0, y: 0, width: 390, height: 844 })
+    expect(await dialog.getByRole('button', { name: '全屏' }).isVisible()).toBe(false)
+    await dialog.getByRole('button', { name: '新建任务' }).click()
+    await dialog.getByRole('button', { name: '选择关联对话' }).click()
+    await page.setViewportSize({ width: 320, height: 568 })
+    const mobileOverflow = await dialog.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }))
+    expect(mobileOverflow.scrollHeight).toBe(mobileOverflow.clientHeight)
+    expect(mobileOverflow.scrollWidth).toBe(mobileOverflow.clientWidth)
+    expect((await dialog.getByRole('region', { name: '线程看板' }).boundingBox())!.height).toBeGreaterThan(0)
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    await page.setViewportSize(desktopViewport)
+
     await dialog.getByRole('button', { name: /^打开会话：/ }).first().click()
     await dialog.waitFor({ state: 'hidden', timeout: 10_000 })
     await page.getByText('SOP_SYNC_DONE', { exact: true }).waitFor({ timeout: 15_000 })
   })
 
   it('keeps a closed fixture inventory and a clean browser console', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'ui.expected.md'])
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })
