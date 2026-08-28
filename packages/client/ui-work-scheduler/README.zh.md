@@ -18,15 +18,19 @@ dsh Web 的线程式个人工作调度插件。它通过现有 slot 系统在侧
 
 ## Session 关联与任务移动
 
-新建任务默认只显示主操作，不会把所有字段常驻在命令栏中。打开编辑器后，多行任务描述会自动获得焦点；待分配区和现有线程以可横向滚动的单选组呈现；关联对话则从当前 Workspace 的 Session 列表中搜索选择。提交或取消都会清空草稿。按 `Escape` 会依次关闭 Session 选择器、任务编辑器和调度窗口。小视口打开编辑器时，看板仍保留独立滚动区域。
+标题栏中的单个`新建`菜单可以打开任务编辑器或紧凑的线程编辑器，因此创建控件不会常驻占用命令栏，且同一时间只显示一个编辑器。打开编辑器时，第一个输入控件会自动获得焦点。任务编辑器中的待分配区和现有线程以可横向滚动的单选组呈现。按 `Escape` 会依次关闭 Session 选择器、创建菜单、当前编辑器和调度窗口。小视口打开任务编辑器时，看板仍保留独立滚动区域。
 
-新任务可以保存其 Workspace 中一个 Session 的 ID。任务卡从 Session 注册表解析当前显示标题，并通过 dsh 原生导航打开该 Session，同时关闭调度板浮层以显示对应对话。文档不会复制标题。如果 Session 不存在或属于其他 Workspace，任务卡保留关联并显示`会话不可用`，且不会执行导航。
+Session 选择器始终先显示`新建并打开对话`与`不关联对话`，之后才是当前 Workspace 中可搜索的 Session；搜索只过滤已有 Session。选择新建操作后，提交会在当前 Workspace 创建 Session，把任务描述写入该 Session 尚未发送的对话草稿，在任务中保存新的 Session ID，然后关闭“工作调度”并打开该 Session。该流程不会发送草稿。如果创建 Session 失败，任务编辑器和草稿会保留，不会添加任务，并显示可重试错误。
+
+新任务也可以保存其 Workspace 中一个已有 Session 的 ID。任务卡从 Session 注册表解析当前显示标题，并通过 dsh 原生导航打开该 Session，同时关闭调度板浮层以显示对应对话。文档不会复制标题。如果 Session 不存在或属于其他 Workspace，任务卡保留关联并显示`会话不可用`，且不会执行导航。
+
+关联 Session 可用且任务处于进行中时，任务卡还会把该 Session 的非空 Todo 列表投影为分段进度，并显示已完成项数／总项数及当前 `in_progress` 项。即使就绪、阻塞或已完成任务与进行中任务共用同一 Session，也不会重复显示该进度；Todo 投影不存在或为空时不显示占位内容。调度器只读取 `SessionSummary.projectionValues.todos`，不会写入 Todo 事件，也不会把 Todo 数据复制到调度文档。
 
 可编辑任务卡使用浏览器原生拖动。拖到另一张卡片会相对该卡排序，拖到泳道会追加到对应线程。同线程和跨线程移动都使用调度器的位置转换，因此状态和持久顺序会一起更新。
 
 ## 组合
 
-侧栏入口和模态贡献共享同一个插件自有 store。面板从客户端 runtime 读取 Session 与 Workspace 注册表，并通过 connection 插件进行持久化加载和保存。移除客户端条目会同时撤销两个 slot 贡献。可安装的 [`dsh-work-scheduler`](../../bundle/work-scheduler/README.zh.md) bundle 在 Web 表层所有者之后挂载本插件及其 Host 存储。
+侧栏入口和模态贡献共享同一个插件自有 store。面板从客户端 runtime 读取 Session 与 Workspace 注册表，仅通过 conversation 服务为新建 Session 写入本地草稿，并通过 connection 插件持久化加载和保存调度数据。移除客户端条目会同时撤销两个 slot 贡献。可安装的 [`dsh-work-scheduler`](../../bundle/work-scheduler/README.zh.md) bundle 在 Web 表层所有者之后挂载本插件及其 Host 存储。
 
 ## 模型体验
 
@@ -48,5 +52,5 @@ dsh Web 的线程式个人工作调度插件。它通过现有 slot 系统在侧
 
 - 同一 Workspace 的并发编辑采用后写胜出，不进行合并或冲突检测。
 - 没有 Workspace 的看板只保存在内存中。
-- 任务关联只会定位到已有 Session；它不会启动、停止或监控 Session、工作流、后台作业或子 agent。
+- 任务关联可以创建并打开 Session，也可以定位到已有 Session；它不会发送预填草稿，也不会启动、停止或监控 Session、工作流、后台作业或子 agent。
 - 导入会在规范化后替换当前文档；插件不会合并两份调度文档。

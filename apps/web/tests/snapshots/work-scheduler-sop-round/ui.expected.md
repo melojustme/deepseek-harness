@@ -2,6 +2,10 @@
   - banner:
     - heading "工作调度" [level=1]
     - paragraph: workspace · 1 个线程可以继续推进
+    - button "新建":
+      - img
+      - text: 新建
+      - img
     - button "使用说明":
       - img
     - button "导出":
@@ -11,13 +15,6 @@
       - img
     - button "关闭":
       - img
-  - textbox "线程名称"
-  - button "新建线程":
-    - img
-    - text: 新建线程
-  - button "新建任务" [expanded]:
-    - img
-    - text: 新建任务
   - heading "新建任务" [level=2]
   - button "取消新建任务":
     - img
@@ -39,9 +36,11 @@
     - img
   - img
   - searchbox "搜索对话"
+  - button "新建并打开对话"
   - button "不关联对话":
     - text: 不关联对话
     - img
+  - separator: 已有对话
   - button "关联对话：workspace": workspace 当前
   - button "关联对话：Use sync_work_scheduler exactly once wit": Use sync_work_scheduler exactly once wit
   - button "取消"
@@ -55,6 +54,8 @@
       - list "Development SOP任务":
         - listitem:
           - text: "#1 进行中 Implementation"
+          - progressbar "工作进度 1/3"
+          - text: Implement progress 1/3
           - button "打开会话：Use sync_work_scheduler exactly once wit":
             - img
             - text: Use sync_work_scheduler exactly once wit

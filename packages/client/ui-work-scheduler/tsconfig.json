@@ -6,9 +6,11 @@
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../connection/tsconfig.client.json" },
     { "path": "../runtime" },
+    { "path": "../ui-conversation" },
     { "path": "../ui-layout" },
     { "path": "../ui-primitives" },
     { "path": "../ui-sidebar" },
-    { "path": "../ui-slots" }
+    { "path": "../ui-slots" },
+    { "path": "../../todo/tool-todo" }
   ]
 }

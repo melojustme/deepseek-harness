@@ -112,6 +112,7 @@ describe('minimal agent preset', () => {
         "tools": [
           "bash",
           "str_replace_editor",
+          "sync_work_scheduler",
         ],
       }
     `)

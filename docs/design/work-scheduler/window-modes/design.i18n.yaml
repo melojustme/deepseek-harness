@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/design/work-scheduler/window-modes/design.md
-design.md: de11bb84b1733112f08b1349337d28292ee57ec2
-design.zh.md: 43d92de7361d1b9753086427c68d679d1675a30e
+design.md: 022670da891aca686124cfb24e87b59c6bfb6262
+design.zh.md: 6c181f16d65c1e5bb243995f77e069c8ce192313

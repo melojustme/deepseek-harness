@@ -77,6 +77,16 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
       description: 'Implementation', status: 'running', sessionId,
     })
     expect(document.archiveIds).toEqual([`sop:${sessionId}:intake`])
+
+    const session = scaffold.ctx.sessions.list().find(item => item.id === sessionId)
+    expect(session).toBeDefined()
+    session!.append('todo/write', {
+      todos: [
+        { content: 'Confirm interaction', status: 'completed' },
+        { content: 'Implement progress', status: 'in_progress' },
+        { content: 'Verify browser', status: 'pending' },
+      ],
+    })
   }, 120_000)
 
   it('opens windowed, changes display modes, and follows the bound Session', async () => {
@@ -96,7 +106,13 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     expect(windowed!.x).toBeGreaterThan(0)
     expect(windowed!.y).toBeGreaterThan(0)
 
-    await dialog.getByRole('button', { name: '新建任务' }).click()
+    await page.setViewportSize({ width: 800, height: 600 })
+    expect(await dialog.boundingBox()).toEqual({ x: 20, y: 20, width: 760, height: 560 })
+    await page.setViewportSize(desktopViewport)
+    expect(await dialog.boundingBox()).toEqual(windowed)
+
+    await dialog.getByRole('button', { name: '新建' }).click()
+    await page.getByRole('menuitem', { name: '新建任务' }).click()
     await dialog.getByRole('textbox', { name: '任务内容' }).fill('校验新建任务体验')
     await dialog.getByRole('button', { name: '选择关联对话' }).click()
     await dialog.getByRole('searchbox', { name: '搜索对话' }).waitFor()
@@ -122,7 +138,8 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     const mobile = await dialog.boundingBox()
     expect(mobile).toEqual({ x: 0, y: 0, width: 390, height: 844 })
     expect(await dialog.getByRole('button', { name: '全屏' }).isVisible()).toBe(false)
-    await dialog.getByRole('button', { name: '新建任务' }).click()
+    await dialog.getByRole('button', { name: '新建' }).click()
+    await page.getByRole('menuitem', { name: '新建任务' }).click()
     await dialog.getByRole('button', { name: '选择关联对话' }).click()
     await page.setViewportSize({ width: 320, height: 568 })
     const mobileOverflow = await dialog.evaluate(element => ({
@@ -140,6 +157,35 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     await dialog.getByRole('button', { name: /^打开会话：/ }).first().click()
     await dialog.waitFor({ state: 'hidden', timeout: 10_000 })
     await page.getByText('SOP_SYNC_DONE', { exact: true }).waitFor({ timeout: 15_000 })
+
+    const existingSessionIds = new Set(scaffold.ctx.workspaceRegistry.list().flatMap(item => item.sessionIds))
+    await page.getByRole('button', { name: '工作调度' }).click()
+    await dialog.waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '新建' }).click()
+    await page.getByRole('menuitem', { name: '新建任务' }).click()
+    await dialog.getByRole('textbox', { name: '任务内容' }).fill('在新对话继续推进')
+    await dialog.getByRole('button', { name: '选择关联对话' }).click()
+    await dialog.getByRole('button', { name: '新建并打开对话' }).click()
+    await dialog.getByRole('button', { name: '添加并打开' }).click()
+    await dialog.waitFor({ state: 'hidden', timeout: 10_000 })
+    const conversationInput = page.locator('textarea').first()
+    await conversationInput.waitFor({ state: 'visible', timeout: 10_000 })
+    expect(await conversationInput.inputValue()).toBe('在新对话继续推进')
+
+    const createdSessionIds = scaffold.ctx.workspaceRegistry.list()
+      .flatMap(item => item.sessionIds)
+      .filter(sessionId => !existingSessionIds.has(sessionId))
+    expect(createdSessionIds).toHaveLength(1)
+    const createdSessionId = createdSessionIds[0]!
+    const createdWorkspace = scaffold.ctx.workspaceRegistry.list()
+      .find(item => item.sessionIds.includes(createdSessionId))
+    expect(createdWorkspace).toBeDefined()
+    await expect.poll(async () => {
+      const updatedDocument = (await scaffold.ctx.workSchedulerStore.load(createdWorkspace!.id)).document
+      return Object.values(updatedDocument.tasks).some(task => (
+        task.description === '在新对话继续推进' && task.sessionId === createdSessionId
+      ))
+    }, { timeout: 10_000 }).toBe(true)
   })
 
   it('keeps a closed fixture inventory and a clean browser console', async () => {

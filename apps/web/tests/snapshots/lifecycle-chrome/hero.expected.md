@@ -17,6 +17,9 @@
     - img
     - text: workspace
   - treeitem "New Session" [selected]
+- button "工作调度":
+  - img
+  - text: 工作调度
 - button "Settings":
   - img
   - text: Settings

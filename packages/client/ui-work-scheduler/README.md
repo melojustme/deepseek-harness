@@ -18,15 +18,19 @@ Import normalizes task status, placement, and asynchronous wake origins, removes
 
 ## Session association and task movement
 
-A new task starts from a collapsed primary action instead of keeping every field in the command row. Opening the editor focuses a multiline description, presents the backlog and current threads as a horizontally scrollable radio group, and offers a searchable list of Sessions from the active Workspace. Submitting or cancelling clears the draft. `Escape` closes the Session picker first, then the task editor, then the scheduler window. On small viewports, the board retains its own scrolling area while the editor is open.
+A single `新建` menu in the header opens either the task editor or the compact thread editor, so creation controls do not occupy a permanent command row and only one editor is visible at a time. Opening an editor focuses its first input. The task editor presents the backlog and current threads as a horizontally scrollable radio group. `Escape` closes the Session picker, creation menu, active editor, and scheduler window in that order. On small viewports, the board retains its own scrolling area while the task editor is open.
 
-A new task may store the ID of one Session in its Workspace. The card resolves the current display title from the Session registry and opens that Session through native dsh navigation, closing the scheduler overlay so the conversation is visible. The document does not copy the title. If the Session is absent or belongs to another Workspace, the card keeps the association visible as `会话不可用` and performs no navigation.
+The Session picker always exposes `新建并打开对话` and `不关联对话` before the searchable Sessions from the active Workspace; search filters only the existing Sessions. Choosing the new-Session action creates a Session in the active Workspace, copies the task description into its unsent conversation draft, stores the new Session ID on the task, closes Work Scheduler, and opens that Session. It does not send the draft. If Session creation fails, the task editor and draft remain, no task is added, and the editor reports a retryable error.
+
+A new task may otherwise store the ID of one existing Session in its Workspace. The card resolves the current display title from the Session registry and opens that Session through native dsh navigation, closing the scheduler overlay so the conversation is visible. The document does not copy the title. If the Session is absent or belongs to another Workspace, the card keeps the association visible as `会话不可用` and performs no navigation.
+
+A running task with an available associated Session also projects that Session's non-empty Todo list as segmented progress. The card shows completed items over the total and the current `in_progress` item. Ready, blocked, and completed tasks do not show this progress even when they share the same Session, and an absent or empty Todo projection leaves no placeholder. The scheduler only reads `SessionSummary.projectionValues.todos`; it does not write Todo events or copy Todo data into its document.
 
 Editable task cards use native browser dragging. Dropping on a card reorders relative to that card; dropping on a lane appends to that thread. Both same-thread and cross-thread moves use the scheduler's placement transition, so status and durable ordering update together.
 
 ## Composition
 
-The sidebar trigger and modal contribution share one plugin-owned store. The panel reads the Session and Workspace registries from the client runtime and calls the connection plugin for durable load and save. Removing the client entry retracts both slot contributions. The installable [`dsh-work-scheduler`](../../bundle/work-scheduler/README.md) bundle mounts this plugin and its Host store after the Web surface owners.
+The sidebar trigger and modal contribution share one plugin-owned store. The panel reads the Session and Workspace registries from the client runtime, uses the conversation service only to seed a newly created Session's local draft, and calls the connection plugin for durable scheduler load and save. Removing the client entry retracts both slot contributions. The installable [`dsh-work-scheduler`](../../bundle/work-scheduler/README.md) bundle mounts this plugin and its Host store after the Web surface owners.
 
 ## Model Experience
 
@@ -48,5 +52,5 @@ The plugin does not change model requests and therefore does not invalidate an o
 
 - Concurrent editors for one Workspace use last-write-wins persistence with no merge or conflict detection.
 - A board without a Workspace is in-memory only.
-- A task association only navigates to an existing Session; it does not start, stop, or monitor Sessions, workflows, jobs, or subagents.
+- A task association can create and open a Session or navigate to an existing one; it does not send the seeded draft or start, stop, or monitor Sessions, workflows, jobs, or subagents.
 - Import replaces the current document after normalization; the plugin does not merge two scheduler documents.

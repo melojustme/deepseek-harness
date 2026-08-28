@@ -8,6 +8,14 @@ English | [中文](requirements.zh.md)
 
 The Work Scheduler dialog should open at an appropriate window size, support resizing, and provide a control that enlarges it to the application viewport.
 
+> 新增任务，会话有可能是新增。
+
+Task creation must also allow the association to be a newly created conversation, not only an existing Session.
+
+> 部分工作进度我希望你参考 dashi-taskboard 这个项目实现。
+
+Running task cards should project useful work progress from their associated Session, following the segmented Todo presentation established by dashi-taskboard.
+
 ## Requirements Breakdown
 
 ### Functional Requirements
@@ -21,6 +29,11 @@ The Work Scheduler dialog should open at an appropriate window size, support res
 | FR-05 | Closing and reopening Work Scheduler resets it to the default windowed geometry; neither size nor fullscreen state is persisted. |
 | FR-06 | Small viewports use the existing responsive content layout in an application-fullscreen dialog and do not expose an inapplicable resize or maximize affordance. |
 | FR-07 | The help surface remains contained by the Work Scheduler window in both windowed and fullscreen modes. |
+| FR-08 | One `新建` menu in the header exposes `新建任务` and `新建线程`; their editors are mutually exclusive and no creation form remains permanently visible. |
+| FR-09 | The task Session picker keeps `新建并打开对话` and `不关联对话` visible before existing Sessions from the active Workspace, while search filters only those existing Sessions. |
+| FR-10 | Submitting with `新建并打开对话` creates a Session in the active Workspace, seeds its unsent composer with the task description, adds the associated task, closes Work Scheduler, and opens the new Session. |
+| FR-11 | If new-Session creation fails, no task is added; the task draft, selected placement, and editor remain available with a retryable error. |
+| FR-12 | A running task associated with an available Session and a non-empty Todo projection shows segmented Todo progress, the completed and total counts, and the current `in_progress` item. Other task states and missing or empty projections show no progress block. |
 
 ### Non-Functional Requirements
 
@@ -30,11 +43,16 @@ The Work Scheduler dialog should open at an appropriate window size, support res
 | NFR-02 | The maximize control has an accessible name that changes between `全屏` and `还原`; keyboard focus remains on the toggle while its mode changes. |
 | NFR-03 | Resizing and mode changes affect presentation only and must not mutate or save the scheduler document. |
 | NFR-04 | The design continues to use existing theme tokens and icon primitives and adds no independent visual language. |
+| NFR-05 | Opening either creation editor focuses its first input; `Escape` dismisses the Session picker, creation menu, active editor, and complete dialog in that order. |
+| NFR-06 | Cancelling, switching editors, changing Workspace, or closing the dialog while Session creation is pending invalidates that submission; a late result must not add a task or reopen a conversation. |
+| NFR-07 | Todo progress exposes progressbar semantics and stable completed and total values; each projection renders one equal-width segment per Todo without changing scheduler state. |
 
 ### Constraints
 
 - Fullscreen means filling the dsh application viewport; the feature does not call the browser Fullscreen API or hide browser chrome.
-- The change remains inside the existing `shell.overlay` contribution and Client-owned view state; it adds no Host API, storage field, Session event, or model-visible input.
+- The change remains inside the existing `shell.overlay` contribution and Client Session and conversation services; it adds no Host API, scheduler storage field, Session event, or model-visible input.
+- The new-Session action requires an active Workspace. The task is not added until Session creation and draft seeding have succeeded, and the seeded draft is not sent automatically.
+- Progress is a read-only projection of `SessionSummary.projectionValues.todos`; the scheduler does not append `todo/write` events or persist Todo data in its document.
 - Clicking the backdrop does not close the dialog, preventing accidental loss of the user's current visual context.
 - Moving the window by dragging its header and persisting geometry across opens or browser reloads are outside this scope.
 
@@ -49,7 +67,16 @@ The Work Scheduler dialog should open at an appropriate window size, support res
 | AC-05 | Clicking an available Session association selects that Session and removes the Work Scheduler dialog without requiring a separate close action. |
 | AC-06 | On a narrow viewport, Work Scheduler fills the application viewport and the maximize control and resize affordance are absent. |
 | AC-07 | Component tests cover mode transitions and close behavior; a real Web test covers the user-visible navigation and dialog result. |
+| AC-08 | The header creation menu opens the requested task or thread editor, switching editors discards the previous editor draft, and closing an editor restores the compact scheduler layout. |
+| AC-09 | Selecting `新建并打开对话` and submitting a task reveals a new conversation with the task description in its unsent composer, while the scheduler task stores that Session's ID. |
+| AC-10 | A Session-creation rejection leaves the task editor visible with its draft intact, displays `无法新建对话，请重试。`, and adds no task. |
+| AC-11 | Cancelling a pending new-Session submit closes the editor immediately; resolving the original request afterward neither adds a task nor changes the visible Session. |
+| AC-12 | A running task linked to a Session with one completed, one active, and one pending Todo shows `1/3` and the active Todo text; a ready task linked to the same Session has no progressbar. |
 
 ## Confirmed Solution Details
 
 The selected design combines free resizing with a two-state windowed/fullscreen control. Window geometry is transient presentation state for one open instance. Desktop windowed mode is the default; responsive small-screen mode is effectively fullscreen. The prototype compares compact, resizable, and maximized presentations, with the resizable presentation as the implementation candidate.
+
+Creation is consolidated into a header menu with one active editor. New-task association offers an explicit new-conversation action alongside no association and existing Sessions. The new-conversation path reuses the active Workspace's Session runtime and conversation composer, preserving the task text as an unsent draft before navigation.
+
+Task progress reuses the linked Session's existing Todo projection. It appears only on running tasks with non-empty Todo data, so one Session shared by several scheduler tasks does not duplicate active progress across inactive cards.
