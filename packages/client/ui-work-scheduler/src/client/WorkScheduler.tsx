@@ -342,7 +342,11 @@ export function SchedulerPanel({
                       disabled={!editable}
                       sessionLabel={resolveSessionLabel(task, workspaceSessionSet, sessions)}
                       onStatus={(status) => { changeStatus(task, status) }}
-                      onOpenSession={() => { if (task.sessionId !== undefined) openSession(task.sessionId) }}
+                      onOpenSession={() => {
+                        if (task.sessionId === undefined) return
+                        openSession(task.sessionId)
+                        actions.close()
+                      }}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = 'move'
                         event.dataTransfer.setData(TASK_DRAG_TYPE, task.id)

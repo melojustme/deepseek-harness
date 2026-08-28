@@ -10,7 +10,7 @@ A personal scheduler needs a durable place in dsh Web without turning human plan
 
 ## Decision
 
-`@deepseek-ai/dsh-client-ui-work-scheduler` contributes an action to `sidebar.footer.action` and a full-frame panel to `shell.overlay`; one plugin store carries the open state and scheduler document across both entries. This uses declared UI extension points and leaves the conversation owner and agent loop unchanged.
+`@deepseek-ai/dsh-client-ui-work-scheduler` contributes an action to `sidebar.footer.action` and a full-frame panel to `shell.overlay`; one plugin store carries the open state and scheduler document across both entries. Opening a task's associated Session selects it through the client runtime and closes the panel so its conversation becomes visible. This uses declared UI extension points and leaves the conversation owner and agent loop unchanged.
 
 Scheduler transitions are pure functions over a version 2 JSON document. Every task occupies exactly one process, backlog, blocked list, or archive. Moving a task to asynchronous blocking records its former process or backlog index, and waking it restores that position when the process still exists. Native card drops delegate same-process ordering and cross-process movement to the same `moveTask` transition. Import normalization removes duplicate and dangling placements before assigning unplaced tasks by status.
 

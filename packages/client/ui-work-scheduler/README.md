@@ -14,7 +14,7 @@ Import normalizes task status, placement, and asynchronous wake origins, removes
 
 ## Session association and task movement
 
-A new task may store the ID of one Session in its Workspace. The card resolves the current display title from the Session registry and opens that Session through native dsh navigation. The document does not copy the title. If the Session is absent or belongs to another Workspace, the card keeps the association visible as `会话不可用` and performs no navigation.
+A new task may store the ID of one Session in its Workspace. The card resolves the current display title from the Session registry and opens that Session through native dsh navigation, closing the scheduler overlay so the conversation is visible. The document does not copy the title. If the Session is absent or belongs to another Workspace, the card keeps the association visible as `会话不可用` and performs no navigation.
 
 Editable task cards use native browser dragging. Dropping on a card reorders relative to that card; dropping on a lane appends to that thread. Both same-thread and cross-thread moves use the scheduler's placement transition, so status and durable ordering update together.
 

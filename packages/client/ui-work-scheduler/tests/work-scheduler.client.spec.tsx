@@ -139,7 +139,7 @@ describe('work scheduler surface', () => {
     expect(view.getByText(/1 个线程可以继续推进/)).toBeTruthy()
   })
 
-  it('binds a new task to a Workspace Session and opens it from the card', async () => {
+  it('binds a new task to a Workspace Session and leaves the scheduler when opening it', async () => {
     const view = mountScheduler()
     fireEvent.click(view.getByRole('button', { name: '工作调度' }))
     await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
@@ -154,6 +154,7 @@ describe('work scheduler surface', () => {
     expect(task?.sessionId).toBe(SECOND_SESSION_ID)
     fireEvent.click(view.getByRole('button', { name: '打开会话：评审会话' }))
     expect(view.openSession).toHaveBeenCalledWith(SECOND_SESSION_ID)
+    expect(view.queryByRole('dialog', { name: '工作调度' })).toBeNull()
   })
 
   it('marks a binding unavailable when its Session is outside the current Workspace', async () => {

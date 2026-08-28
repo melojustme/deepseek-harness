@@ -86,7 +86,7 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     await dialog.waitFor({ timeout: 10_000 })
     await dialog.getByText('Implementation', { exact: true }).first().waitFor({ timeout: 10_000 })
     await dialog.getByRole('button', { name: /^打开会话：/ }).first().click()
-    await dialog.getByTitle('关闭').click()
+    await dialog.waitFor({ state: 'hidden', timeout: 10_000 })
     await page.getByText('SOP_SYNC_DONE', { exact: true }).waitFor({ timeout: 15_000 })
   })
 

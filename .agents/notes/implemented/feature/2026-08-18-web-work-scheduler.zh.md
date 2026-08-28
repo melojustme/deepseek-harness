@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`@deepseek-ai/dsh-client-ui-work-scheduler` 向 `sidebar.footer.action` 贡献入口，向 `shell.overlay` 贡献全屏面板，两个条目通过同一个插件 store 共享打开状态和调度文档。该方案使用已声明的 UI 扩展点，不改变会话所有者或 agent loop。
+`@deepseek-ai/dsh-client-ui-work-scheduler` 向 `sidebar.footer.action` 贡献入口，向 `shell.overlay` 贡献全屏面板，两个条目通过同一个插件 store 共享打开状态和调度文档。打开任务所关联的 Session 时，插件通过客户端 runtime 选中该 Session 并关闭面板，以显示对应对话。该方案使用已声明的 UI 扩展点，不改变会话所有者或 agent loop。
 
 调度转换是针对版本 2 JSON 文档的纯函数。每个任务只能位于一个线程、待分配列表、阻塞列表或归档中。任务转为异步阻塞时记录原线程或待分配索引；唤醒时，如果原线程仍存在，就恢复到该位置。原生卡片拖放把同线程排序和跨线程移动委托给同一个 `moveTask` 转换。导入规范化会先移除重复和悬空位置，再按状态安置尚未放置的任务。
 
