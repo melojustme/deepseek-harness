@@ -24,7 +24,7 @@ export const schedulerTaskOriginSchema = z.discriminatedUnion('zone', [
 ]) satisfies z.ZodType<Wire<SchedulerTaskOrigin>>
 
 /** One scheduled task row. */
-export const schedulerTaskSchema = z.object({
+export const schedulerTaskSchema: z.ZodType<Wire<SchedulerTask>> = z.object({
   id: z.string(),
   description: z.string(),
   sessionId: sessionIdSchema.optional(),
@@ -34,7 +34,7 @@ export const schedulerTaskSchema = z.object({
   origin: schedulerTaskOriginSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
-}) satisfies z.ZodType<Wire<SchedulerTask>>
+})
 
 /** One execution thread. */
 export const schedulerProcessSchema = z.object({
@@ -44,14 +44,14 @@ export const schedulerProcessSchema = z.object({
 }) satisfies z.ZodType<Wire<SchedulerProcess>>
 
 /** The whole scheduler document; `version` pins the literal 2. */
-export const workSchedulerDocumentSchema = z.object({
+export const workSchedulerDocumentSchema: z.ZodType<Wire<WorkSchedulerDocument>> = z.object({
   version: z.literal(2),
   processes: z.array(schedulerProcessSchema),
   tasks: z.record(z.string(), schedulerTaskSchema),
   backlogIds: z.array(z.string()),
   blockedIds: z.array(z.string()),
   archiveIds: z.array(z.string()),
-}) satisfies z.ZodType<Wire<WorkSchedulerDocument>>
+})
 
 /** workScheduler.load request payload. */
 export const workSchedulerLoadRequestSchema = z.object({
@@ -59,15 +59,15 @@ export const workSchedulerLoadRequestSchema = z.object({
 }) satisfies z.ZodType<Wire<RequestPayload<'workScheduler.load'>>>
 
 /** workScheduler.load response value. */
-export const workSchedulerLoadValueSchema = z.object({
+export const workSchedulerLoadValueSchema: z.ZodType<Wire<ResponseValue<'workScheduler.load'>>> = z.object({
   document: workSchedulerDocumentSchema,
-}) satisfies z.ZodType<Wire<ResponseValue<'workScheduler.load'>>>
+})
 
 /** workScheduler.save request payload. */
-export const workSchedulerSaveRequestSchema = z.object({
+export const workSchedulerSaveRequestSchema: z.ZodType<Wire<RequestPayload<'workScheduler.save'>>> = z.object({
   workspaceId: workspaceIdSchema,
   document: workSchedulerDocumentSchema,
-}) satisfies z.ZodType<Wire<RequestPayload<'workScheduler.save'>>>
+})
 
 /** workScheduler.save response value. */
 export const workSchedulerSaveValueSchema = z.object({}) satisfies z.ZodType<Wire<ResponseValue<'workScheduler.save'>>>

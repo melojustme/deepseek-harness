@@ -240,7 +240,7 @@ describe('the shipped Web composition', () => {
       expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
         'ask_user_question', 'bash', 'create_goal', 'edit', 'exit_plan_mode',
         'get_goal', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'ralph', 'read', 'read_image', 'send_message', 'skill',
-        'subagent', 'subagent_fork', 'todo_write', 'update_goal', 'web_search',
+        'subagent', 'subagent_fork', 'sync_work_scheduler', 'todo_write', 'update_goal', 'web_search',
         'workflow', 'write',
       ])
     } finally {
@@ -248,7 +248,7 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('composes the exact RL prompt and two tools from `minimal`', async () => {
+  it('composes the exact RL prompt, minimal tools, and root scheduler tool', async () => {
     const handle = await ctx.agents.create({
       sessionId: SessionId('preset-minimal'),
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'minimal').then(() => undefined),
@@ -258,7 +258,7 @@ describe('the shipped Web composition', () => {
       expect(assembly.sections).toEqual([
         { name: 'deployment:persona', text: MINIMAL_PROMPT },
       ])
-      expect(assembly.tools.map(tool => tool.name)).toEqual(['bash', 'str_replace_editor'])
+      expect(assembly.tools.map(tool => tool.name)).toEqual(['bash', 'str_replace_editor', 'sync_work_scheduler'])
       expect(assembly.tools.find(tool => tool.name === 'bash')?.description).toBe(MINIMAL_BASH_DESCRIPTION)
       expect(JSON.stringify(assembly.tools.find(tool => tool.name === 'str_replace_editor')?.parameters))
         .toContain('Absolute path')
@@ -279,7 +279,7 @@ describe('the shipped Web composition', () => {
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'minimal').then(() => undefined),
     })
     try {
-      expect(toolNames(ctx, minimal.agent)).toEqual(['bash', 'str_replace_editor'])
+      expect(toolNames(ctx, minimal.agent)).toEqual(['bash', 'str_replace_editor', 'sync_work_scheduler'])
       expect(toolNames(ctx, full.agent).length).toBeGreaterThan(10)
 
       await minimal.dispose()
@@ -428,7 +428,7 @@ describe('the shipped Web composition', () => {
       // stays the preset's choice — minimal mounts no `tool-skill`, so its
       // tool table has no loader even though the global layer is readable.
       expect((await ctx.skills.list({ scope: handle.agent })).map(skill => skill.name)).toContain('dsh-badge')
-      expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'str_replace_editor'])
+      expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'str_replace_editor', 'sync_work_scheduler'])
     } finally {
       await handle.dispose()
     }
@@ -674,10 +674,14 @@ describe('a delegated child', () => {
       },
     })
     try {
-      expect(toolNames(ctx, child.agent)).toEqual(toolNames(ctx, parent.agent))
+      const parentTools = toolNames(ctx, parent.agent)
+      const childTools = toolNames(ctx, child.agent)
+      expect(childTools).toEqual(parentTools.filter(name => name !== 'sync_work_scheduler'))
+      expect(parentTools).toContain('sync_work_scheduler')
+      expect(childTools).not.toContain('sync_work_scheduler')
       // The shipped `standard` preset is the whole coding agent; an empty
       // child here is the defect, and equality alone would not catch it.
-      expect(toolNames(ctx, child.agent)).toContain('bash')
+      expect(childTools).toContain('bash')
       expect(child.agent.session.header.agentPreset).toBe('standard')
     } finally {
       await child.dispose()
@@ -702,7 +706,11 @@ describe('a delegated child', () => {
     try {
       // The live scope chain is the authority, not the parent's creation
       // header — which still names `standard`.
-      expect(toolNames(ctx, child.agent)).toEqual(toolNames(ctx, parent.agent))
+      const parentTools = toolNames(ctx, parent.agent)
+      const childTools = toolNames(ctx, child.agent)
+      expect(childTools).toEqual(parentTools.filter(name => name !== 'sync_work_scheduler'))
+      expect(parentTools).toContain('sync_work_scheduler')
+      expect(childTools).not.toContain('sync_work_scheduler')
       expect(child.agent.session.header.agentPreset).toBe('minimal')
     } finally {
       await child.dispose()
@@ -826,7 +834,7 @@ describe('authoring a preset on the shipped composition', () => {
     try {
       // The same tools the shipped `minimal` composes, from a directory copied
       // through the service into a root outside the installed harness.
-      expect(toolNames(authorCtx, handle.agent)).toEqual(['bash', 'str_replace_editor'])
+      expect(toolNames(authorCtx, handle.agent)).toEqual(['bash', 'str_replace_editor', 'sync_work_scheduler'])
     } finally {
       await handle.dispose()
     }
@@ -861,9 +869,10 @@ describe('the default preset as a user setting', () => {
         setup: agentCtx => ctx.agentPresets.mount(agentCtx).then(() => undefined),
       })
       try {
-        // `mount()` with no id resolves the effective default. Two tools, not
-        // `standard`'s catalog: the setting decided the composition.
-        expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'str_replace_editor'])
+        // `mount()` with no id resolves the effective default. Minimal's two
+        // preset tools plus the root-only scheduler tool, not `standard`'s
+        // catalog, prove that the setting decided the composition.
+        expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'str_replace_editor', 'sync_work_scheduler'])
       } finally {
         await handle.dispose()
       }
@@ -888,7 +897,7 @@ describe('a session keeps the preset it was created with', () => {
     try {
       // The api-proxy guard reads exactly this: the header records what the
       // session runs, so naming anything else is a caller error rather than a
-      // switch. Its history was produced under `minimal`'s two tools.
+      // switch. Its history was produced under `minimal`'s toolset.
       expect(handle.agent.session.header.agentPreset).toBe('minimal')
     } finally {
       await handle.dispose()

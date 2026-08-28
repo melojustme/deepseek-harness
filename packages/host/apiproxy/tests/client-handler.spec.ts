@@ -453,7 +453,7 @@ describe('work scheduler domain round trip', () => {
     const c = client(scriptedApi())
     const unsupportedVersion = await c.workScheduler.save({
       workspaceId: 'w1' as never,
-      document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] },
+      document: { version: 1, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] },
     } as never)
     const missingOriginProcess = await c.workScheduler.save({
       workspaceId: 'w1' as never,
