@@ -288,7 +288,8 @@ describe('work scheduler surface', () => {
 
   it('drops a pending Session choice when it leaves the active Workspace', async () => {
     const workspaces = workspacesSnapshot()
-    const view = mountScheduler({ workspaces })
+    const workspaceItems = [...workspaces.items]
+    const view = mountScheduler({ workspaces: { ...workspaces, items: workspaceItems } })
     fireEvent.click(view.getByRole('button', { name: '工作调度' }))
     await waitFor(() => { expect(view.instance.getSnapshot().status).toBe('ready') })
 
@@ -297,7 +298,7 @@ describe('work scheduler surface', () => {
     fireEvent.click(view.getByRole('button', { name: '选择关联对话' }))
     fireEvent.click(view.getByRole('button', { name: '关联对话：评审会话' }))
 
-    workspaces.items[0] = { ...workspaces.items[0]!, sessionIds: [SESSION_ID] }
+    workspaceItems[0] = { ...workspaceItems[0]!, sessionIds: [SESSION_ID] }
     act(() => { view.instance.actions.addProcess('触发刷新', 'p1') })
     expect(view.getByRole('button', { name: '选择关联对话' })).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '添加任务' }))
