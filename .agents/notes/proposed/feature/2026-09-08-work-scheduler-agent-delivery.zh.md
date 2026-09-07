@@ -1,0 +1,31 @@
+# Agent Note: 工作调度中的原生任务执行与审查
+
+Status: proposed
+
+[English](2026-09-08-work-scheduler-agent-delivery.md) | 中文
+
+## 问题
+
+现有调度器把规划任务关联到 Session，但不拥有执行轮次或人工接受结果。“进行中”标签、Session 空闲或 Todo 全部完成，都不能证明某项任务产生了哪些文件变化，也不能证明用户审查过该版本。
+
+## 提案
+
+为调度器增加 Host 拥有的执行轮次、专属原生 Session、隔离 Git worktree 和绑定版本的审查。[需求](../../../../docs/design/work-scheduler/agent-delivery/requirements.zh.md)拥有产品验收标准，[设计](../../../../docs/design/work-scheduler/agent-delivery/design.zh.md)拥有数据、命令、恢复和组合职责。[原型](../../../../packages/client/ui-work-scheduler/prototype/agent-delivery.html)只演示模拟交互。
+
+[现有调度器决策](../../implemented/feature/2026-08-18-web-work-scheduler.zh.md)继续有效：其规划语义、SOP 所有权和窗口组合仍然适用。本提案在该基础上增加执行所有权。
+
+## 考虑过的替代方案
+
+**嵌入 AutoMaker 应用。** 可以保留现成界面，但会引入独立的提供商、会话和存储体系，而不是扩展用户的 Harness 面板。
+
+**在浏览器组件内执行任务。** 初始改动较少，但面板释放和断线会影响调度，多客户端还可能重复提交。Host 所有者可以提供持久接收与恢复。
+
+**复用任意关联 Session，并比较原工作区差异。** 现有关联可能代表多个 SOP 任务，共享文件系统变化无法可靠归属到一次执行。专属轮次和 worktree 使证据可以审查，代价是明确的 Git 与产物保留要求。
+
+## 验收标准
+
+设计交付包含互相链接的双语需求与架构，以及演示看板、执行进度、审查、通过、返工和失败状态的交互原型。正式实现的验收标准由需求定义；本记录转为已实现前，必须具备真实组合、已记录输入、竞争覆盖和原生执行证据。
+
+## 风险
+
+Host 拥有执行轮次，要求使用条件更新取代整份文档的最后写入获胜，包括现有 SOP 写入方。版本 3 拒绝旧记录。worktree 消耗磁盘并需要保留策略；非 Git 执行和自动合入分支不在范围内。通过审查必须与提供商声称成功、以及合并修改保持不同含义。
