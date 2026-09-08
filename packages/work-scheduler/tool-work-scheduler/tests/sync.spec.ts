@@ -10,7 +10,7 @@ const earlier = '2026-08-20T00:00:00.000Z'
 const now = '2026-08-21T00:00:00.000Z'
 
 function emptyDocument(): WorkSchedulerDocument {
-  return { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+  return { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
 }
 
 describe('SOP stage synchronization', () => {
@@ -32,20 +32,20 @@ describe('SOP stage synchronization', () => {
       taskIds: ['sop:session-a:implement', 'sop:session-a:verify'],
     }])
     expect(result.tasks['sop:session-a:intake']).toMatchObject({
-      sessionId: sessionA, description: '需求确认', status: 'done', createdAt: now, updatedAt: now,
+      sessionId: sessionA, description: '需求确认', acceptance: [], status: 'done', createdAt: now, updatedAt: now,
     })
     expect(result.tasks['sop:session-a:implement']).toMatchObject({
-      sessionId: sessionA, description: '实现', status: 'running', createdAt: now, updatedAt: now,
+      sessionId: sessionA, description: '实现', acceptance: [], status: 'running', createdAt: now, updatedAt: now,
     })
     expect(result.tasks['sop:session-a:verify']).toMatchObject({
-      sessionId: sessionA, description: '验证', status: 'ready', createdAt: now, updatedAt: now,
+      sessionId: sessionA, description: '验证', acceptance: [], status: 'ready', createdAt: now, updatedAt: now,
     })
     expect(result.archiveIds).toEqual(['sop:session-a:intake'])
   })
 
   it('replaces only its session namespace and preserves manual and other-session work', () => {
     const source: WorkSchedulerDocument = {
-      version: 2,
+      version: 3, revision: 0, attempts: {},
       processes: [
         { id: 'manual', name: '人工线程', taskIds: ['manual-task'] },
         { id: 'sop:session-b', name: '其他 SOP', taskIds: ['sop:session-b:plan'] },
@@ -53,10 +53,10 @@ describe('SOP stage synchronization', () => {
         { id: 'sop:session-a', name: '旧 SOP', taskIds: ['sop:session-a:old'] },
       ],
       tasks: {
-        'manual-task': { id: 'manual-task', description: '人工任务', status: 'running', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
-        'sop:session-b:plan': { id: 'sop:session-b:plan', description: '其他计划', sessionId: sessionB, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
-        'sop:session-a:child:plan': { id: 'sop:session-a:child:plan', description: '前缀相同的计划', sessionId: sessionWithPrefix, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
-        'sop:session-a:old': { id: 'sop:session-a:old', description: '旧阶段', sessionId: sessionA, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
+        'manual-task': { id: 'manual-task', description: '人工任务', acceptance: [], status: 'running', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
+        'sop:session-b:plan': { id: 'sop:session-b:plan', description: '其他计划', acceptance: [], sessionId: sessionB, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
+        'sop:session-a:child:plan': { id: 'sop:session-a:child:plan', description: '前缀相同的计划', acceptance: [], sessionId: sessionWithPrefix, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
+        'sop:session-a:old': { id: 'sop:session-a:old', description: '旧阶段', acceptance: [], sessionId: sessionA, status: 'ready', reason: '', wakeCondition: '', createdAt: earlier, updatedAt: earlier },
       },
       backlogIds: [],
       blockedIds: [],

@@ -277,12 +277,15 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
           rpcId: request.rpcId,
           result: {
             ok: true,
-            value: { document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } },
+            value: { document: { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } },
           },
         }
       },
+      async command(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'internal', message: 'unavailable', details: {} } } }
+      },
       async save(request) {
-        return { rpcId: request.rpcId, result: { ok: true, value: {} } }
+        return { rpcId: request.rpcId, result: { ok: true, value: { document: request.payload.document } } }
       },
     },
     llm: {

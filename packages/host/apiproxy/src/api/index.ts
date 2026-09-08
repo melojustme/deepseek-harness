@@ -106,3 +106,5 @@ export {
 
 // ---- Method registry and derived generics ----
 export type { RequestPayload, ResponseValue, RpcMethodMap } from './rpc-map.ts'
+
+export type * from './work-scheduler-execution.ts'

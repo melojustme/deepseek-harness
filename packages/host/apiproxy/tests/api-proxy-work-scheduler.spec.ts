@@ -10,7 +10,7 @@ import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
 
 const WORKSPACE_ID = 'ws-1' as WorkspaceId
 const DOCUMENT: WorkSchedulerDocument = {
-  version: 2,
+  version: 3, revision: 0, attempts: {},
   processes: [],
   tasks: {},
   backlogIds: [],
@@ -23,6 +23,7 @@ function request<P>(payload: P): RpcRequest<P> {
 }
 
 async function api(ctx: Context) {
+  ctx.provide('workspaceRegistry', { get: (id: WorkspaceId) => id === WORKSPACE_ID ? {} : undefined } as never)
   await ctx.plugin(UserQuestionService)
   return createApiProxy(ctx, {
     defaultModelSelection: () => ({ provider: 'test', model: 'test' }),
@@ -33,7 +34,7 @@ async function api(ctx: Context) {
 describe('work scheduler API', () => {
   it('validates and retains an optional non-empty Session binding', () => {
     const task = {
-      id: 'task-1', description: '检查会话', status: 'ready' as const,
+      id: 'task-1', description: '检查会话', acceptance: [], status: 'ready' as const,
       reason: '', wakeCondition: '', sessionId: 'session-1',
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     }
@@ -59,10 +60,11 @@ describe('work scheduler API', () => {
   it('delegates load and save to the store', async () => {
     const ctx = new Context()
     const load = vi.fn(async () => ({ document: DOCUMENT }))
-    const save = vi.fn(async () => {})
+    const save = vi.fn(async () => DOCUMENT)
     const store: WorkSchedulerStore = {
       load,
       save,
+      update: async () => DOCUMENT,
     }
     ctx.provide('workSchedulerStore', store)
 
@@ -70,7 +72,7 @@ describe('work scheduler API', () => {
     expect((await scheduler.load(request({ workspaceId: WORKSPACE_ID }))).result)
       .toEqual({ ok: true, value: { document: DOCUMENT } })
     expect((await scheduler.save(request({ workspaceId: WORKSPACE_ID, document: DOCUMENT }))).result)
-      .toEqual({ ok: true, value: {} })
+      .toEqual({ ok: true, value: { document: DOCUMENT } })
     expect(load).toHaveBeenCalledWith(WORKSPACE_ID)
     expect(save).toHaveBeenCalledWith(WORKSPACE_ID, DOCUMENT)
   })
@@ -78,6 +80,7 @@ describe('work scheduler API', () => {
   it('maps store failures to internal errors', async () => {
     const ctx = new Context()
     ctx.provide('workSchedulerStore', {
+      update: async () => { throw new Error('unused') },
       load: async () => { throw new Error('read failed') },
       save: async () => { throw new Error('write failed') },
     })

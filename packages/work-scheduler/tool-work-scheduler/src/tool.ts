@@ -156,16 +156,17 @@ export function registerWorkSchedulerTool(rootCtx: Context, toolCtx: Context, ag
       validateInput(args.workflow, args.stages)
       exec.signal.throwIfAborted()
       const workspaceId = workspaceFor(rootCtx, agent)
-      const { document } = await rootCtx.workSchedulerStore.load(workspaceId)
       exec.signal.throwIfAborted()
       const now = new Date().toISOString()
-      const next = syncSopStages(document, {
+      await rootCtx.workSchedulerStore.update(workspaceId, document => {
+        const next = syncSopStages(document, {
         workflow: args.workflow.trim(),
         sessionId: agent.id,
         stages: args.stages.map(stage => ({ ...stage, name: stage.name.trim() })),
         now,
       })
-      await rootCtx.workSchedulerStore.save(workspaceId, next)
+        Object.assign(document, next)
+      })
       return {
         workspaceId,
         sessionId: agent.id,

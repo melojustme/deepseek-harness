@@ -8,7 +8,7 @@ The caller submits the complete ordered workflow stage list with stable keys, di
 
 Stage keys use lowercase letters, digits, and internal hyphens; names and the workflow name must be non-empty, keys must be unique, and at most one stage may be active. Invalid input, a Session without a Workspace, or an inconsistent multiple-Workspace membership fails without saving. Repeating the same snapshot preserves task timestamps. Reopening a completed stage moves it out of the archive and back into its process.
 
-The store uses whole-document last-write-wins replacement. A browser edit concurrent with a model synchronization can overwrite the other writer; the package does not add compare-and-set or locking.
+Synchronization uses the store's atomic update chain. It cannot overwrite concurrent browser edits or rewrite a SOP namespace containing an execution attempt. New SOP tasks have no acceptance criteria until the user supplies them before native execution.
 
 ## Model Experience
 
@@ -42,4 +42,4 @@ Append-only; tool arguments and results follow the reusable request prefix and d
 
 ## Known Limitations and Deferred Work
 
-- **Concurrent whole-document writes are last-write-wins** — a browser edit and a model synchronization that overlap can overwrite each other because the store provides neither compare-and-set nor locking.
+- A SOP namespace containing attempted tasks rejects replacement; execution and review remain Host-owned.

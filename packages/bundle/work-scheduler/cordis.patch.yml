@@ -11,6 +11,11 @@
     - id: work-scheduler-store
       name: '@deepseek-ai/dsh-work-scheduler-store'
 
+    - id: work-scheduler-execution
+      name: '@deepseek-ai/dsh-work-scheduler-execution-local'
+      config:
+        worktreeRoot: !!js dshHomePath('work-scheduler', 'worktrees')
+
     - id: tool-work-scheduler
       name: '@deepseek-ai/dsh-tool-work-scheduler'
 

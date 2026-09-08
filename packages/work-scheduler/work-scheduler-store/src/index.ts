@@ -29,7 +29,7 @@ import type {
  */
 export const workSchedulerDomainSpec = defineDomain({
   name: 'work_scheduler',
-  version: 2,
+  version: 3,
   tables: {
     // Wire<T> admits explicit undefined for Zod's optional-property typing;
     // durable JSON cannot retain it, so the same parser narrows on reopen.
@@ -41,7 +41,7 @@ export const workSchedulerDomainSpec = defineDomain({
 
 /** Empty document served before the first save; schema-identical, never stored. */
 const EMPTY_DOCUMENT: WorkSchedulerDocument = {
-  version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [],
+  version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [],
 }
 
 /**
@@ -56,6 +56,8 @@ export class WorkSchedulerStoreService extends Service implements WorkSchedulerS
   static inject = ['storageDomain']
 
   /** The open domain; resolution failures surface to every method call. */
+  private writes: Promise<unknown> = Promise.resolve()
+
   private readonly ready: Promise<Domain<typeof workSchedulerDomainSpec>>
 
   /**
@@ -69,17 +71,45 @@ export class WorkSchedulerStoreService extends Service implements WorkSchedulerS
     // unhandled-rejection crash when the failure precedes the first use.
     this.ready.catch(() => {})
     ctx.effect(() => async () => {
+      await this.writes
       const domain = await this.ready.catch(() => undefined)
       await domain?.close()
     }, 'work-scheduler-store.closeDomain')
   }
 
   load(workspaceId: WorkspaceId): Promise<{ document: WorkSchedulerDocument }> {
-    return this.ready.then(domain => ({ document: domain.table('documents').get(workspaceId) ?? EMPTY_DOCUMENT }))
+    return this.ready.then(domain => ({ document: structuredClone(domain.table('documents').get(workspaceId) ?? EMPTY_DOCUMENT) }))
   }
 
-  save(workspaceId: WorkspaceId, document: WorkSchedulerDocument): Promise<void> {
-    return this.ready.then(domain => domain.table('documents').put(workspaceId, document))
+  save(workspaceId: WorkspaceId, document: WorkSchedulerDocument): Promise<WorkSchedulerDocument> {
+    return this.update(workspaceId, current => {
+      if (document.revision !== current.revision) throw new Error('看板已被更新，请刷新后重试；当前草稿尚未保存。')
+      if (JSON.stringify(document.attempts) !== JSON.stringify(current.attempts)) throw new Error('执行和审查记录只能通过执行命令修改。')
+      for (const attempt of Object.values(current.attempts)) {
+        if (JSON.stringify(document.tasks[attempt.taskId]) !== JSON.stringify(current.tasks[attempt.taskId])) {
+          throw new Error('已有执行记录的任务不能被规划写入覆盖；请使用返工。')
+        }
+        const placement = (value: WorkSchedulerDocument) => [...value.processes.map(process => [process.id, process.taskIds.indexOf(attempt.taskId)]), ['backlog', value.backlogIds.indexOf(attempt.taskId)], ['blocked', value.blockedIds.indexOf(attempt.taskId)], ['archive', value.archiveIds.indexOf(attempt.taskId)]].filter(row => row[1] !== -1)
+        if (JSON.stringify(placement(document)) !== JSON.stringify(placement(current))) throw new Error('已有执行记录的任务不能重新排序。')
+      }
+      Object.assign(current, structuredClone(document))
+    })
+  }
+
+  update(workspaceId: WorkspaceId, mutate: (document: WorkSchedulerDocument) => void): Promise<WorkSchedulerDocument> {
+    const operation = this.writes.then(async () => {
+      const domain = await this.ready
+      const current = structuredClone(domain.table('documents').get(workspaceId) ?? EMPTY_DOCUMENT)
+      const revision = current.revision
+      mutate(current)
+      current.revision = revision + 1
+      const parsed = workSchedulerDocumentSchema.parse(current) as WorkSchedulerDocument
+      await domain.table('documents').put(workspaceId, parsed)
+      return structuredClone(parsed)
+    })
+    // Each caller receives its own rejection; a failed mutation must not block later writers.
+    this.writes = operation.catch(() => {})
+    return operation
   }
 }
 

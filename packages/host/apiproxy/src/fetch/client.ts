@@ -62,7 +62,7 @@ import {
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsValueSchema, llmModelsValueSchema, llmProvidersValueSchema } from '../api/llm.schema.ts'
 import {
-  workSchedulerLoadValueSchema, workSchedulerSaveValueSchema,
+  workSchedulerCommandValueSchema, workSchedulerLoadValueSchema, workSchedulerSaveValueSchema,
 } from '../api/work-scheduler.schema.ts'
 import {
   subagentHistoryValueSchema,
@@ -165,6 +165,7 @@ export interface IApiClient {
     discoverModels(payload: RequestPayload<'llm.discoverModels'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.discoverModels'>>>
   }
   workScheduler: {
+    command(payload: RequestPayload<'workScheduler.command'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'workScheduler.command'>>>
     load(payload: RequestPayload<'workScheduler.load'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'workScheduler.load'>>>
     save(payload: RequestPayload<'workScheduler.save'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'workScheduler.save'>>>
   }
@@ -229,6 +230,7 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'llm.providers': llmProvidersValueSchema,
   'llm.models': llmModelsValueSchema,
   'llm.discoverModels': llmDiscoverModelsValueSchema,
+  'workScheduler.command': workSchedulerCommandValueSchema,
   'workScheduler.load': workSchedulerLoadValueSchema,
   'workScheduler.save': workSchedulerSaveValueSchema,
 }
@@ -510,6 +512,7 @@ export abstract class AbstractApiClient implements IApiClient {
   }
 
   readonly workScheduler: IApiClient['workScheduler'] = {
+    command: (payload, signal) => this.callUnary('workScheduler.command', payload, signal),
     load: (payload, signal) => this.callUnary('workScheduler.load', payload, signal),
     save: (payload, signal) => this.callUnary('workScheduler.save', payload, signal),
   }

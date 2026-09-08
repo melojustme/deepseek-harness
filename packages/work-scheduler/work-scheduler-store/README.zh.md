@@ -6,7 +6,7 @@ dsh Web 工作调度文档的按 Workspace 持久化存储。它通过[存储领
 
 ## 服务
 
-本包注册 `ctx.workSchedulerStore`，提供 `load(workspaceId)` 与 `save(workspaceId, document)`。Workspace 没有存储记录时，`load` 返回空文档。`save` 通过领域单写链替换文档：先持久化，再更新内存，最后发送 `domain/changed`。服务打开版本 2 的 `work_scheduler` 领域，其中 `documents` 表以 Workspace ID 为键；服务随自身 fiber 关闭，并在重新打开时按文档 schema 校验每条记录。任务可以携带一个可选 Session ID；浏览器会投影其当前标题与可用状态，而不持久化这两个值。
+本包注册 `ctx.workSchedulerStore`，提供 `load(workspaceId)`、带条件的 `save(workspaceId, document)` 和可信调用方使用的 `update(workspaceId, mutate)`。Workspace 没有存储记录时，`load` 返回空文档。`save` 要求当前修订号，保护 Host 拥有的执行记录和已执行任务，并返回修订号递增后的持久文档。`update` 在最新文档上串行应用可信同步修改。两者通过领域单写链发布：先持久化，再更新内存，最后发送 `domain/changed`。服务打开版本 3 的 `work_scheduler` 领域，其中 `documents` 表以 Workspace ID 为键；服务随自身 fiber 关闭，并在重新打开时按文档 schema 校验每条记录。任务可以携带一个可选 Session ID；浏览器会投影其当前标题与可用状态，而不持久化这两个值。
 
 网关中可供浏览器使用的 `api/` 层（[`dsh-host-apiproxy`](../../host/apiproxy/README.md)）拥有 `WorkSchedulerDocument` 及其 Zod schema，因为 Host 存储和浏览器客户端共享这些定义。本包对持久化记录复用该 schema，因此线上和持久化读取路径接受相同的 JSON 字段。
 
@@ -32,6 +32,6 @@ dsh Web 工作调度文档的按 Workspace 持久化存储。它通过[存储领
 
 ## 已知限制与延期工作
 
-- 文档只按 Workspace 为键：并发编辑采用后写胜出，不进行合并或冲突检测。
+- 浏览器修订号冲突时拒绝覆盖；调用方保留草稿，读取新状态后显式重试。已执行任务的内容和位置通过执行命令管理。
 - 删除 Workspace 注册后，其调度文档仍然保留；Workspace 生命周期清理不包含本领域。
-- 文档采用 `version: 2` 且没有迁移路径；未来格式会提升领域版本，并按预发布策略拒绝旧介质。
+- 文档采用 `version: 3` 且没有迁移路径；未来格式会提升领域版本，并按预发布策略拒绝旧介质。

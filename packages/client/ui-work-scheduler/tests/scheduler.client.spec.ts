@@ -6,24 +6,11 @@ import {
 } from '../src/client/scheduler.ts'
 
 describe('work scheduler domain', () => {
-  it('stores and normalizes an optional Session binding', () => {
+  it('retains Session bindings and rejects unsupported persisted versions', () => {
     const sessionId = 'session-1' as SessionId
-    const added = addTask(createSchedulerState(), {
-      id: 'bound', description: '检查会话', sessionId,
-    })
-
-    expect(added.tasks.bound?.sessionId).toBe(sessionId)
-
-    const normalized = normalizeSchedulerState({
-      version: 2,
-      processes: [],
-      tasks: { bound: { ...added.tasks.bound, sessionId } },
-      backlogIds: ['bound'],
-      blockedIds: [],
-      archiveIds: [],
-    })
-    expect(normalized.version).toBe(2)
-    expect(normalized.tasks.bound?.sessionId).toBe(sessionId)
+    const added = addTask(createSchedulerState(), { id: 'bound', description: '检查会话', sessionId })
+    expect(normalizeSchedulerState(added).tasks.bound?.sessionId).toBe(sessionId)
+    expect(() => normalizeSchedulerState({ ...added, version: 2 })).toThrow()
   })
 
   it('runs only the first task before a synchronous block in each thread', () => {
@@ -66,37 +53,19 @@ describe('work scheduler domain', () => {
     expect(state.tasks.t1?.status).toBe('ready')
   })
 
-  it('normalizes imported state without duplicate placement or unknown task ids', () => {
-    const normalized = normalizeSchedulerState({
-      version: 2,
-      processes: [{ id: 'p1', name: '线程', taskIds: ['a', 'missing', 'a'] }],
-      tasks: { a: { id: 'a', description: '任务', status: 'ready' } },
-      backlogIds: ['a', 'missing'],
-      blockedIds: [],
-      archiveIds: [],
-    })
-
-    expect(normalized.processes[0]?.taskIds).toEqual(['a'])
-    expect(normalized.backlogIds).toEqual([])
+  it('rejects duplicate placement and unknown task ids without repairing data', () => {
+    const added = addTask(createSchedulerState(), { id: 'task', description: '任务' })
+    expect(() => normalizeSchedulerState({ ...added, backlogIds: ['task', 'task'] })).toThrow('exactly one placement')
+    expect(() => normalizeSchedulerState({ ...added, backlogIds: ['missing'] })).toThrow('Unknown placed task')
   })
 
-  it('preserves an asynchronous block origin through durable normalization', () => {
-    const normalized = normalizeSchedulerState({
-      version: 2,
-      processes: [{ id: 'p1', name: '线程', taskIds: ['a'] }],
-      tasks: {
-        a: { id: 'a', description: '前置', status: 'ready' },
-        b: {
-          id: 'b', description: '等待 CI', status: 'async-blocked',
-          origin: { zone: 'process', processId: 'p1', index: 1 },
-        },
-      },
-      backlogIds: [],
-      blockedIds: ['b'],
-      archiveIds: [],
-    })
-
-    expect(normalized.tasks.b?.origin).toEqual({ zone: 'process', processId: 'p1', index: 1 })
-    expect(wakeTask(normalized, 'b').processes[0]?.taskIds).toEqual(['a', 'b'])
+  it('preserves an asynchronous block origin through durable parsing', () => {
+    let state = addProcess(createSchedulerState(), '线程', 'p1')
+    state = addTask(state, { id: 'a', description: '前置', processId: 'p1' })
+    state = addTask(state, { id: 'b', description: '等待 CI', processId: 'p1' })
+    state = setTaskStatus(state, 'b', 'async-blocked')
+    const parsed = normalizeSchedulerState(state)
+    expect(parsed.tasks.b?.origin).toEqual({ zone: 'process', processId: 'p1', index: 1 })
+    expect(wakeTask(parsed, 'b').processes[0]?.taskIds).toEqual(['a', 'b'])
   })
 })

@@ -6,7 +6,7 @@ Per-Workspace durable store for the dsh Web work scheduler document. It reads an
 
 ## Service
 
-The package registers `ctx.workSchedulerStore` with `load(workspaceId)` and `save(workspaceId, document)`. `load` resolves an empty document when the Workspace has no stored record. `save` replaces the document through the domain's single write chain: durability, memory, then `domain/changed`. The service opens the `work_scheduler` domain at version 2 with a `documents` table keyed by Workspace ID, closes it with its fiber, and revalidates every record against the document schema on reopen. A task may carry one optional Session ID; the browser projects its current title and availability instead of persisting either value.
+The package registers `ctx.workSchedulerStore` with `load(workspaceId)`, conditional `save(workspaceId, document)`, and trusted `update(workspaceId, mutate)`. `load` resolves an empty document when the Workspace has no stored record. `save` requires the current revision, preserves Host-owned attempts and attempted tasks, and returns the incremented durable document. `update` serializes a trusted synchronous mutation against the latest document. Both publish through the domain's single write chain: durability, memory, then `domain/changed`. The service opens the `work_scheduler` domain at version 3 with a `documents` table keyed by Workspace ID, closes it with its fiber, and revalidates every record against the document schema on reopen. A task may carry one optional Session ID; the browser projects its current title and availability instead of persisting either value.
 
 The gateway's browser-safe `api/` layer ([`dsh-host-apiproxy`](../../host/apiproxy/README.md)) owns `WorkSchedulerDocument` and its Zod schema because the Host store and browser client share them. This package reuses that schema for durable records, so the wire and durable read paths accept the same JSON fields.
 
@@ -32,6 +32,6 @@ The package does not change model requests and therefore does not invalidate an 
 
 ## Known Limitations and Deferred Work
 
-- Documents are keyed only by Workspace: concurrent editors use last-write-wins persistence with no merge or conflict detection.
+- Conflicting browser revisions reject without overwriting data; callers retain their drafts and explicitly retry against fresh state. Attempted task content and placement require execution commands.
 - Deleting a Workspace registration leaves its scheduler document stored; Workspace lifecycle cleanup does not include this domain.
-- The document uses `version: 2` with no migration path; a future format increments the domain version and rejects older media under the pre-release policy.
+- The document uses `version: 3` with no migration path; a future format increments the domain version and rejects older media under the pre-release policy.

@@ -76,6 +76,7 @@ export interface RpcMethodMap {
   'llm.models': LlmApi['models']
   'llm.discoverModels': LlmApi['discoverModels']
   'workScheduler.load': WorkSchedulerApi['load']
+  'workScheduler.command': WorkSchedulerApi['command']
   'workScheduler.save': WorkSchedulerApi['save']
 }
 

@@ -19,10 +19,10 @@ const workspaceB = 'ws-b' as unknown as import('@deepseek-ai/dsh-host-apiproxy/a
 
 function document(tasks: string[], sessionId?: TaskSessionId): WorkSchedulerDocument {
   return {
-    version: 2,
+    version: 3, revision: 0, attempts: {},
     processes: [],
     tasks: Object.fromEntries(tasks.map((description, index) => [String(index), {
-      id: String(index), description, status: 'ready', reason: '', wakeCondition: '',
+      id: String(index), description, acceptance: [], status: 'ready', reason: '', wakeCondition: '',
       ...sessionId === undefined ? {} : { sessionId },
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     }])),
@@ -60,14 +60,14 @@ describe('work scheduler store', () => {
     try {
       const a = document(['检查构建'])
       const b = document(['写文档'])
-      await store.save(workspaceA, a)
-      await store.save(workspaceB, b)
-      expect(await store.load(workspaceA)).toEqual({ document: a })
-      expect(await store.load(workspaceB)).toEqual({ document: b })
-      // Overwrite semantics: the last save wins for one workspace.
-      await store.save(workspaceA, b)
-      expect(await store.load(workspaceA)).toEqual({ document: b })
-      expect(await store.load(workspaceB)).toEqual({ document: b })
+      const savedA = await store.save(workspaceA, a)
+      const savedB = await store.save(workspaceB, b)
+      expect(await store.load(workspaceA)).toEqual({ document: savedA })
+      expect(await store.load(workspaceB)).toEqual({ document: savedB })
+      await expect(store.save(workspaceA, b)).rejects.toThrow('看板已被更新')
+      const replaced = await store.save(workspaceA, { ...b, revision: savedA.revision })
+      expect(await store.load(workspaceA)).toEqual({ document: replaced })
+      expect(await store.load(workspaceB)).toEqual({ document: savedB })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -77,8 +77,8 @@ describe('work scheduler store', () => {
     const { ctx, store } = await harness()
     try {
       const bound = document(['检查会话'], 'session-1' as TaskSessionId)
-      await store.save(workspaceA, bound)
-      expect(await store.load(workspaceA)).toEqual({ document: bound })
+      const saved = await store.save(workspaceA, bound)
+      expect(await store.load(workspaceA)).toEqual({ document: saved })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -89,5 +89,33 @@ describe('work scheduler store', () => {
     expect(facility.get(workSchedulerDomainSpec.name)).toBeDefined()
     await ctx.fiber.dispose()
     expect(facility.get(workSchedulerDomainSpec.name)).toBeUndefined()
+  })
+
+  it('admits one concurrent revision and rejects the stale writer without losing data', async () => {
+    const { ctx, store } = await harness()
+    try {
+      const results = await Promise.allSettled([
+        store.save(workspaceA, document(['first'])),
+        store.save(workspaceA, document(['second'])),
+      ])
+      expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected'])
+      const loaded = (await store.load(workspaceA)).document
+      expect(loaded.revision).toBe(1)
+      expect(loaded.tasks['0']?.description).toBe('first')
+      loaded.tasks['0']!.description = 'unpersisted edit'
+      expect((await store.load(workspaceA)).document.tasks['0']?.description).toBe('first')
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('rejects duplicate placements and resumes writing after a rejected mutation', async () => {
+    const { ctx, store } = await harness()
+    try {
+      const invalid = document(['task'])
+      invalid.backlogIds.push('0')
+      await expect(store.save(workspaceA, invalid)).rejects.toThrow('exactly one placement')
+      expect((await store.save(workspaceA, document(['valid']))).revision).toBe(1)
+      await expect(store.update(workspaceA, current => { delete current.tasks['0'] })).rejects.toThrow('Unknown placed task')
+      expect((await store.load(workspaceA)).document.tasks['0']?.description).toBe('valid')
+    } finally { await ctx.fiber.dispose() }
   })
 })

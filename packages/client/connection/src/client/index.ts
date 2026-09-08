@@ -23,7 +23,7 @@ export type {
   MessageId, ModelReasoningEffort, ModelSelection, QueueAction, QueuedInboxItem, SessionModels,
   SubagentsApi, SubagentAddress, SubagentCatalog, SubagentListEntry, SubagentPromptReceipt,
   WorkSchedulerApi, SchedulerTask, SchedulerProcess, SchedulerTaskStatus, SchedulerTaskOrigin,
-  WorkSchedulerDocument,
+  WorkSchedulerDocument, SchedulerCommand, SchedulerAttempt, SchedulerAttemptId, SchedulerCommandId, SchedulerExecutionStatus, SchedulerEvidence,
   JobView,
   RpcRequest, RpcResponse, RpcResult, RpcError, RpcErrorCode,
   ClientRequest, ServerResponse, ServerRequest, ClientResponse, RpcMessage, RpcReceipt,
@@ -170,3 +170,5 @@ export function apply(ctx: Context): void {
   }
   ctx.provide('connection', handle)
 }
+
+export { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-host-apiproxy/api'

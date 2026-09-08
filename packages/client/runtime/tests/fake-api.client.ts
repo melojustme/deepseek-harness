@@ -280,9 +280,10 @@ export class FakeApiClient implements IApiClient {
 
   readonly workScheduler: IApiClient['workScheduler'] = {
     load: payload => this.record('workScheduler.load', payload, Promise.resolve(ok({
-      document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] },
+      document: { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] },
     }))),
-    save: payload => this.record('workScheduler.save', payload, Promise.resolve(ok({}))),
+    save: payload => this.record('workScheduler.save', payload, Promise.resolve(ok({ document: { ...payload.document, revision: payload.document.revision + 1 } }))),
+    command: payload => this.record('workScheduler.command', payload, Promise.resolve(ok({ document: { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } }))),
   }
 
   /** When true, streams never fire onOpen (misbehaving-carrier material for the handshake timeout guard). */

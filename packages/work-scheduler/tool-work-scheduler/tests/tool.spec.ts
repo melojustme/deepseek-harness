@@ -68,7 +68,7 @@ async function harness(member = true) {
     sessionIds: member ? [agent.id] : [],
   } as unknown as Workspace
   let document: WorkSchedulerDocument = {
-    version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [],
+    version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [],
   }
   let saves = 0
   ctx.provide('workspaceRegistry', { list: () => [workspace] } as never)
@@ -77,10 +77,18 @@ async function harness(member = true) {
       expect(id).toBe(workspaceId)
       return { document }
     },
+    async update(id: WorkspaceId, mutate: (value: WorkSchedulerDocument) => void) {
+      expect(id).toBe(workspaceId)
+      saves += 1
+      mutate(document)
+      document.revision += 1
+      return document
+    },
     async save(id: WorkspaceId, next: WorkSchedulerDocument) {
       expect(id).toBe(workspaceId)
       saves += 1
       document = next
+      return document
     },
   })
   const disposeTool = registerWorkSchedulerTool(ctx, agent.ctx, agent)

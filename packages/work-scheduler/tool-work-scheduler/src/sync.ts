@@ -66,9 +66,10 @@ export function syncSopStages(
 ): WorkSchedulerDocument {
   const processId = `sop:${input.sessionId}`
   const taskPrefix = `${processId}:`
+  if (Object.values(document.attempts).some(attempt => attempt.taskId.startsWith(taskPrefix))) throw new Error('SOP 不能重写已有执行记录的流程。')
   const managedIds = new Set(
     Object.entries(document.tasks)
-      .filter(([id, task]) => id.startsWith(taskPrefix) && task.sessionId === input.sessionId)
+      .filter(([id, task]) => id.startsWith(taskPrefix) && task.sessionId === input.sessionId && !Object.values(document.attempts).some(attempt => attempt.taskId === id))
       .map(([id]) => id),
   )
   const tasks: Record<string, SchedulerTask> = Object.fromEntries(
@@ -79,9 +80,11 @@ export function syncSopStages(
 
   for (const stage of input.stages) {
     const id = `${taskPrefix}${stage.key}`
+    if (Object.values(document.attempts).some(attempt => attempt.taskId === id)) throw new Error('SOP 不能覆盖已有执行记录的任务。')
     const desired = {
       id,
       description: stage.name,
+      acceptance: [],
       sessionId: input.sessionId,
       status: schedulerStatus(stage.status),
       reason: '',
@@ -111,7 +114,8 @@ export function syncSopStages(
 
   const withoutManaged = (ids: readonly string[]): string[] => ids.filter(id => !managedIds.has(id))
   return {
-    version: 2,
+    ...document,
+    version: 3,
     processes,
     tasks,
     backlogIds: withoutManaged(document.backlogIds),

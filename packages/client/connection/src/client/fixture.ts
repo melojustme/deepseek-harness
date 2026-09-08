@@ -3058,17 +3058,20 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       }),
     },
     workScheduler: {
+      command: request => err(request, { code: 'internal', message: 'Fixture transport does not execute scheduler tasks.', details: {} }),
       load: (request) => {
         const stored = workSchedulerDocuments.get(request.payload.workspaceId)
         return ok(request, {
           document: stored === undefined
-            ? { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+            ? { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
             : structuredClone(stored),
         })
       },
       save: (request) => {
-        workSchedulerDocuments.set(request.payload.workspaceId, structuredClone(request.payload.document))
-        return ok(request, {})
+        const document = structuredClone(request.payload.document)
+        document.revision += 1
+        workSchedulerDocuments.set(request.payload.workspaceId, document)
+        return ok(request, { document })
       },
     },
     respond(message: ClientResponse): Promise<RpcReceipt> {
@@ -3242,6 +3245,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'llm.providers': return this.api.llm.providers(request)
       case 'llm.models': return this.api.llm.models(request)
       case 'llm.discoverModels': return this.api.llm.discoverModels(request, signal)
+      case 'workScheduler.command': return this.api.workScheduler.command(request)
       case 'workScheduler.load': return this.api.workScheduler.load(request)
       case 'workScheduler.save': return this.api.workScheduler.save(request)
     }

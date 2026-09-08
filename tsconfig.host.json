@@ -311,6 +311,8 @@
     { "path": "./packages/lsp/lsp" },
     { "path": "./packages/lsp/lsp-stdio" },
     { "path": "./packages/lsp/tool-lsp" },
-    { "path": "./apps/cli" }
+    { "path": "./apps/cli" },
+    { "path": "packages/work-scheduler/work-scheduler-execution" },
+    { "path": "packages/work-scheduler/work-scheduler-execution-local" }
   ]
 }

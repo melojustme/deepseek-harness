@@ -12,6 +12,8 @@ dsh plugin --profile web add @deepseek-ai/dsh-work-scheduler
 
 profile 自有的 `cordis.patch.yml` 位于本层之上，可以禁用任一插入行或替换 `storage-domain` 路由。
 
+bundle 同时挂载[原生执行提供者](../../work-scheduler/work-scheduler-execution-local/README.md)，在 Harness 主目录下保留隔离 worktree。Web 组合提供原生 Session、预设、模型和子进程依赖。
+
 ## 模型体验
 
 无，因为本包是静态 patch carrier；插入的 `dsh-tool-work-scheduler` 行拥有面向模型的 schema 与结果。

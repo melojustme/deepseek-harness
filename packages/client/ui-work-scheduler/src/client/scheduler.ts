@@ -22,6 +22,7 @@ export type {
 export interface AddTaskInput {
   id?: string
   description: string
+  acceptance?: string[]
   sessionId?: SessionId
   processId?: string
   status?: TaskStatus
@@ -34,14 +35,14 @@ export interface MoveTarget {
   index: number
 }
 
-const VALID_STATUS = new Set<TaskStatus>(['ready', 'running', 'sync-blocked', 'async-blocked', 'done'])
+import { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-client-connection/client'
 
 /**
  * Create an empty scheduler document.
- * @returns a version 2 document with no processes or tasks.
+ * @returns a version 3 document with no processes or tasks.
  */
 export function createSchedulerState(): SchedulerState {
-  return { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+  return { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
 }
 
 function copyState(state: SchedulerState): SchedulerState {
@@ -103,6 +104,7 @@ export function addTask(state: SchedulerState, input: AddTaskInput): SchedulerSt
   next.tasks[taskId] = {
     id: taskId,
     description: input.description.trim() || '未命名任务',
+    acceptance: input.acceptance ?? [],
     ...input.sessionId === undefined ? {} : { sessionId: input.sessionId },
     status: input.status ?? 'ready',
     reason: '',
@@ -262,78 +264,11 @@ export function runnableTasks(state: SchedulerState): Array<{ process: Scheduler
   })
 }
 
-function text(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim() !== '' ? value : fallback
-}
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
-  return value as Record<string, unknown>
-}
-
-function taskOrigin(value: unknown): TaskOrigin | undefined {
-  if (value === null || typeof value !== 'object') return undefined
-  const input = value as Partial<TaskOrigin>
-  const index = input.index
-  if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) return undefined
-  if (input.zone === 'backlog') return { zone: 'backlog', index }
-  if (input.zone !== 'process' || typeof input.processId !== 'string' || input.processId === '') return undefined
-  return { zone: 'process', processId: input.processId, index }
-}
-
 /**
- * Validate and repair an imported or Host-loaded scheduler document.
- * @param value - untrusted JSON-compatible input.
- * @returns a version 2 document with unique, status-consistent task placements.
+ * Parse imported documents without repairing or discarding execution evidence.
+ * @param value - Untrusted imported JSON.
+ * @returns Validated version-three document; invalid or older documents throw.
  */
 export function normalizeSchedulerState(value: unknown): SchedulerState {
-  const input = record(value)
-  if (input === undefined || input.version !== 2) return createSchedulerState()
-  const rawTasks = record(input.tasks) ?? {}
-  const tasks: Record<string, SchedulerTask> = {}
-  for (const [taskId, raw] of Object.entries(rawTasks)) {
-    const item = record(raw)
-    if (item === undefined) continue
-    const now = new Date().toISOString()
-    const status = VALID_STATUS.has(item.status as TaskStatus) ? item.status as TaskStatus : 'ready'
-    const origin = status === 'async-blocked' ? taskOrigin(item.origin) : undefined
-    tasks[taskId] = {
-      id: taskId,
-      description: text(item.description, '未命名任务'),
-      ...typeof item.sessionId === 'string' && item.sessionId !== '' ? { sessionId: item.sessionId as SessionId } : {},
-      status,
-      reason: typeof item.reason === 'string' ? item.reason : '',
-      wakeCondition: typeof item.wakeCondition === 'string' ? item.wakeCondition : '',
-      createdAt: text(item.createdAt, now),
-      updatedAt: text(item.updatedAt, now),
-      ...origin === undefined ? {} : { origin },
-    }
-  }
-  const placed = new Set<string>()
-  const take = (ids: unknown, accept?: (task: SchedulerTask) => boolean): string[] => {
-    if (!Array.isArray(ids)) return []
-    return ids.filter((taskId): taskId is string => {
-      if (typeof taskId !== 'string' || placed.has(taskId)) return false
-      const task = tasks[taskId]
-      if (task === undefined || (accept !== undefined && !accept(task))) return false
-      placed.add(taskId)
-      return true
-    })
-  }
-  const rawProcesses = Array.isArray(input.processes) ? input.processes as unknown[] : []
-  const processes = rawProcesses.flatMap((raw, index) => {
-    const process = record(raw)
-    if (process === undefined) return []
-    return [{ id: text(process.id, id('thread')), name: text(process.name, `线程 ${index + 1}`), taskIds: take(process.taskIds, task => task.status !== 'done' && task.status !== 'async-blocked') }]
-  })
-  const blockedIds = take(input.blockedIds, task => task.status === 'async-blocked')
-  const archiveIds = take(input.archiveIds, task => task.status === 'done')
-  const backlogIds = take(input.backlogIds, task => task.status !== 'done' && task.status !== 'async-blocked')
-  for (const [taskId, task] of Object.entries(tasks)) {
-    if (placed.has(taskId)) continue
-    if (task.status === 'done') archiveIds.push(taskId)
-    else if (task.status === 'async-blocked') blockedIds.push(taskId)
-    else backlogIds.push(taskId)
-  }
-  return { version: 2, processes, tasks, backlogIds, blockedIds, archiveIds }
+  return workSchedulerDocumentSchema.parse(value) as SchedulerState
 }

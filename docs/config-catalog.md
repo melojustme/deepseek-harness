@@ -3188,6 +3188,38 @@ export interface Config {
 
 Source: [`packages/web/web-search-perplexity/src/index.ts:32`](../packages/web/web-search-perplexity/src/index.ts)
 
+<a id="deepseek-aidsh-work-scheduler-execution-local"></a>
+
+## `@deepseek-ai/dsh-work-scheduler-execution-local`
+
+Requires: `workSchedulerStore` · `workspaceRegistry` · `agents` · `sessions` · `agentDefaultModel` · `agentPresets` · `llm` · `subprocess` · `sessionPersistence`
+
+```ts config-catalog
+/** Host scheduling, Git limits, and retained artifact location. */
+export interface Config extends GitConfig {
+  /** Absolute parent directory for retained execution worktrees. */
+  worktreeRoot: string
+  /** Maximum preparing or running attempts across registered Workspaces. */
+  maxConcurrentRuns: number
+  /** Maximum queued attempts admitted in one Workspace. */
+  maxQueuedRuns: number
+  /** Queue scan interval in milliseconds. */
+  dispatchIntervalMs: number
+}
+
+/** Deployment limits for Git commands and their complete captured output. */
+export interface GitConfig {
+  /** Maximum duration of one Git command in milliseconds. */
+  gitTimeoutMs: number
+  /** Grace period before force-stopping a cancelled Git process tree. */
+  gitGraceMs: number
+  /** Byte limit for each Git output stream and the displayed review evidence. */
+  maxEvidenceBytes: number
+}
+```
+
+Source: [`packages/work-scheduler/work-scheduler-execution-local/src/index.ts:18`](../packages/work-scheduler/work-scheduler-execution-local/src/index.ts)
+
 <a id="deepseek-aidsh-workflow-worker-thread"></a>
 
 ## `@deepseek-ai/dsh-workflow-worker-thread`
@@ -3315,6 +3347,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 - `@deepseek-ai/dsh-shell` — abstract `ShellExecutor` ([`packages/shell/shell/src/index.ts`](../packages/shell/shell/src/index.ts))
 - `@deepseek-ai/dsh-spill` — abstract `SpillStore` ([`packages/spill/spill/src/index.ts`](../packages/spill/spill/src/index.ts))
 - `@deepseek-ai/dsh-subprocess` — abstract `SubprocessRuntime` ([`packages/subprocess/subprocess/src/index.ts`](../packages/subprocess/subprocess/src/index.ts))
+- `@deepseek-ai/dsh-work-scheduler-execution` — abstract `WorkSchedulerExecutionService` ([`packages/work-scheduler/work-scheduler-execution/src/index.ts`](../packages/work-scheduler/work-scheduler-execution/src/index.ts))
 - `@deepseek-ai/dsh-workflow` — abstract `WorkflowEngine` ([`packages/workflow/workflow/src/index.ts`](../packages/workflow/workflow/src/index.ts))
 
 ## Library packages (no plugin entry)

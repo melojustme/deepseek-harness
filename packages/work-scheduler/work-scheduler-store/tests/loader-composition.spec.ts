@@ -31,9 +31,9 @@ afterEach(async () => {
 })
 
 const DOCUMENT: WorkSchedulerDocument = {
-  version: 2,
+  version: 3, revision: 0, attempts: {},
   processes: [{ id: 'p1', name: '发布', taskIds: ['t1'] }],
-  tasks: { t1: { id: 't1', description: '检查构建', status: 'ready', reason: '', wakeCondition: '', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' } },
+  tasks: { t1: { id: 't1', description: '检查构建', acceptance: [], status: 'ready', reason: '', wakeCondition: '', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' } },
   backlogIds: [], blockedIds: [], archiveIds: [],
 }
 
@@ -95,7 +95,7 @@ describe('work scheduler store real composition', () => {
     const dbPath = join(root, 'storage.sqlite')
     const workspaceId = 'ws-1' as WorkspaceId
 
-    let saveDone: Promise<void> | undefined
+    let saveDone: Promise<WorkSchedulerDocument> | undefined
     const writer = {
       name: 'writer',
       apply: (ctx: Context) => {
@@ -124,6 +124,6 @@ describe('work scheduler store real composition', () => {
     await second.fiber.dispose()
     context = undefined
 
-    expect(loaded).toEqual(DOCUMENT)
+    expect(loaded).toEqual({ ...DOCUMENT, revision: 1 })
   })
 })

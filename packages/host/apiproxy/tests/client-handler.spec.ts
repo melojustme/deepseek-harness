@@ -124,8 +124,9 @@ function scriptedApi(overrides: {
       ...overrides.credentials,
     },
     workScheduler: {
-      load: r => ok(r, { document: { version: 2, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } }),
-      save: r => ok(r, {}),
+      load: r => ok(r, { document: { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] } }),
+      save: r => ok(r, { document: r.payload.document }),
+      command: err,
       ...overrides.workScheduler,
     },
     llm: {

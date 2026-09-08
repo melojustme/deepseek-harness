@@ -12,6 +12,8 @@ dsh plugin --profile web add @deepseek-ai/dsh-work-scheduler
 
 The profile's own `cordis.patch.yml` remains above this layer and may disable either inserted row or replace the `storage-domain` route.
 
+The bundle also mounts [the native execution provider](../../work-scheduler/work-scheduler-execution-local/README.md), retaining isolated worktrees below the Harness home. The Web composition supplies its native Session, preset, model, and subprocess dependencies.
+
 ## Model Experience
 
 None, as this package is a static patch carrier; the inserted `dsh-tool-work-scheduler` row owns the model-facing schema and result.

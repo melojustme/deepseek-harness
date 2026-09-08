@@ -65,7 +65,7 @@ import {
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsRequestSchema, llmModelsRequestSchema, llmProvidersRequestSchema } from '../api/llm.schema.ts'
 import {
-  workSchedulerLoadRequestSchema, workSchedulerSaveRequestSchema,
+  workSchedulerCommandRequestSchema, workSchedulerLoadRequestSchema, workSchedulerSaveRequestSchema,
 } from '../api/work-scheduler.schema.ts'
 import {
   subagentHistoryRequestSchema,
@@ -143,6 +143,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'llm.providers': { schema: llmProvidersRequestSchema, invoke: (api, r) => api.llm.providers(r) },
   'llm.models': { schema: llmModelsRequestSchema, invoke: (api, r) => api.llm.models(r) },
   'llm.discoverModels': { schema: llmDiscoverModelsRequestSchema, invoke: (api, r, signal) => api.llm.discoverModels(r, signal) },
+  'workScheduler.command': { schema: workSchedulerCommandRequestSchema, invoke: (api, r) => api.workScheduler.command(r) },
   'workScheduler.load': { schema: workSchedulerLoadRequestSchema, invoke: (api, r) => api.workScheduler.load(r) },
   'workScheduler.save': { schema: workSchedulerSaveRequestSchema, invoke: (api, r) => api.workScheduler.save(r) },
 }

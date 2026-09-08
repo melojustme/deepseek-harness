@@ -1,13 +1,6 @@
-/**
- * workScheduler domain contract: the web face of the per-workspace work
- * scheduler document (@deepseek-ai/dsh-work-scheduler-store). One whole
- * versioned JSON document per workspace, read and written verbatim; the
- * browser is a client of the durable copy, never an owner. The document
- * shape lives here (browser-safe, zero host deps) because both the wire
- * schema and the browser scheduler normalize against it; the host store
- * validates stored records with the same vocabulary.
- */
+/** Shared scheduler planning, conditional persistence, and native execution API. */
 
+import type { SchedulerAttempt, SchedulerCommand } from './work-scheduler-execution.ts'
 import type { RpcRequest, RpcResponse } from './rpc.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from './workspace.ts'
@@ -26,6 +19,8 @@ export interface SchedulerTask {
   id: string
   /** User-written description. */
   description: string
+  /** Explicit criteria included in each execution input. */
+  acceptance: string[]
   /** Optional Session opened when the user follows this task's association. */
   sessionId?: SessionId
   status: SchedulerTaskStatus
@@ -49,11 +44,13 @@ export interface SchedulerProcess {
 }
 
 /**
- * The whole scheduler document. `version: 2` is the only accepted literal;
- * a future shape bumps it and the host store's domain version together.
+ * The whole scheduler document. `version: 3` is the only accepted literal;
+ * a future format bumps it and the host store's domain version together.
  */
 export interface WorkSchedulerDocument {
-  version: 2
+  version: 3
+  revision: number
+  attempts: Record<string, SchedulerAttempt>
   processes: SchedulerProcess[]
   tasks: Record<string, SchedulerTask>
   backlogIds: string[]
@@ -71,11 +68,14 @@ export interface WorkSchedulerApi {
   load(request: RpcRequest<{ workspaceId: WorkspaceId }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
 
   /**
-   * Replace one workspace's scheduler document durably. The payload schema
+   * Save planning changes at the current revision without overwriting execution records. The payload schema
    * validates the full document at the wire boundary; the host store
    * revalidates stored records at the durable read boundary.
    */
-  save(request: RpcRequest<{ workspaceId: WorkspaceId; document: WorkSchedulerDocument }>): Promise<RpcResponse<{}>>
+  save(request: RpcRequest<{ workspaceId: WorkspaceId; document: WorkSchedulerDocument }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
+  /** Apply an execution or review command and return its durable result. */
+  command(request: RpcRequest<{ workspaceId: WorkspaceId; command: SchedulerCommand }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
+
 }
 
 /**
@@ -93,12 +93,19 @@ export interface WorkSchedulerStore {
    */
   load(workspaceId: WorkspaceId): Promise<{ document: WorkSchedulerDocument }>
   /**
-   * Replace one workspace's scheduler document durably.
+   * Save planning changes at the current revision without overwriting execution records.
    * @param workspaceId - owning workspace.
    * @param document - the full next document (no partial merge).
-   * @returns resolution after durability.
+   * @returns The incremented document after durability; conflicts reject.
    */
-  save(workspaceId: WorkspaceId, document: WorkSchedulerDocument): Promise<void>
+  save(workspaceId: WorkspaceId, document: WorkSchedulerDocument): Promise<WorkSchedulerDocument>
+  /**
+   * Serialize a trusted Host mutation with every other writer.
+   * @param workspaceId - Owning workspace.
+   * @param mutate - Pure mutation of a detached current document; throws to reject.
+   * @returns The next durable revision.
+   */
+  update(workspaceId: WorkspaceId, mutate: (document: WorkSchedulerDocument) => void): Promise<WorkSchedulerDocument>
 }
 
 declare module '@deepseek-ai/cordis' {

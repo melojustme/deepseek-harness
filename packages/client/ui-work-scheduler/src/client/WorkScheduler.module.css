@@ -70,3 +70,42 @@
 .window[data-fullscreen] .resizeHandle { display: none; }
 @media (max-width: 760px) { .window { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }.modeToggle, .resizeHandle { display: none !important; }.header { flex-wrap: wrap; gap: 7px; padding: 8px 10px; }.header > div:first-child { flex: 1 1 90px; }.headerActions { margin-left: auto; gap: 3px; }.commandBar { padding: 8px 10px; }.commandBar[data-composer='task'] { max-height: 68vh; overflow-y: auto; overscroll-behavior: contain; }.processEditorRow { min-width: 0; }.processEditorRow .addTask { padding: 0 9px; }.composerMeta { grid-template-columns: 1fr; gap: 10px; }.taskContentField textarea { min-height: 58px; }.sessionOptions { max-height: 150px; }.composerActions { flex-wrap: wrap; }.composerError { flex-basis: 100%; }.workspace { grid-template-columns: 1fr; overflow: auto; }.board { min-height: 55vh; }.inspector { border-top: 1px solid var(--dsw-alias-border-l2); border-left: 0; }.lane { width: min(78vw, 280px); flex-basis: min(78vw, 280px); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+.deliveryWindow { resize: both; }
+.deliveryWindow[data-fullscreen] { resize: none; }
+.deliveryToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+.deliveryToolbar input { min-width: 100px; flex: 1; }
+.deliveryWindow button, .deliveryWindow input, .deliveryWindow textarea, .deliveryWindow select { font: inherit; color: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; padding: 7px 10px; background: var(--dsw-alias-bg-layer-1); }
+.deliveryWindow button { cursor: pointer; }
+.deliveryWindow button:disabled { opacity: .45; cursor: not-allowed; }
+.deliveryWindow button[aria-pressed='true'] { border-color: var(--dsw-static-deepseek-500); color: var(--dsw-static-deepseek-500); }
+.deliveryWindow button:focus-visible, .deliveryWindow input:focus-visible, .deliveryWindow textarea:focus-visible, .deliveryWindow select:focus-visible { outline: 2px solid var(--dsw-static-deepseek-500); outline-offset: 2px; }
+.deliveryContent { display: grid; grid-template-columns: minmax(0, 1fr) 340px; flex: 1; min-height: 0; }
+.deliveryBoard { display: flex; gap: 12px; padding: 16px; overflow: auto; background: var(--dsw-alias-bg-module-platform); }
+.deliveryLane { flex: 1; min-width: 170px; }
+.deliveryLane h2 { font-size: 13px; display: flex; justify-content: space-between; }
+.deliveryCard { display: flex; flex-direction: column; gap: 10px; width: 100%; margin: 10px 0; text-align: left; }
+.deliveryCard strong { white-space: pre-wrap; overflow-wrap: anywhere; }
+.deliveryCard small { color: var(--dsw-alias-label-tertiary); }
+.deliveryDetails { padding: 18px; overflow: auto; border-left: 1px solid var(--dsw-alias-border-l2); }
+.deliveryDetails h2 { font-size: 17px; white-space: pre-wrap; }
+.deliveryDetails h3 { font-size: 13px; }
+.deliveryDetails label, .deliveryComposer label { display: grid; gap: 6px; margin: 12px 0; }
+.deliveryDetails textarea { min-height: 90px; }
+.deliveryDetails pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.deliveryDetails button { margin: 3px; }
+.deliveryText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.deliveryDiff { font: 12px/1.7 monospace; background: var(--dsw-alias-bg-layer-2); padding: 10px; }
+.deliveryNotice { border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); padding: 10px; font-size: 12px; }
+.deliveryComposer { padding: 12px 24px; max-height: 55%; overflow: auto; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+.deliveryComposer textarea { min-height: 60px; }
+.deliveryError { padding: 8px 18px; color: var(--dsw-alias-state-error-primary); }
+@media(max-width: 760px) {
+  .deliveryContent { display: block; overflow: auto; }
+  .deliveryBoard { display: block; }
+  .deliveryLane { min-width: 0; margin-bottom: 20px; }
+  .deliveryContent[data-detail] .deliveryBoard { display: none; }
+  .deliveryContent[data-detail] .deliveryDetails { display: block; }
+  .deliveryDetails { border: 0; }
+  .deliveryWindow { resize: none; }
+}

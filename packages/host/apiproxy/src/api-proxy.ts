@@ -3330,6 +3330,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     },
 
     workScheduler: {
+      async command(request) {
+        const execution = ctx.get('workSchedulerExecution')
+        if (execution === undefined) return err(request, { code: 'internal', message: '工作调度执行插件未加载', details: {} })
+        try {
+          return ok(request, { document: await execution.command(request.payload.workspaceId, request.payload.command) })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} })
+        }
+      },
       async load(request) {
         const store = ctx.get('workSchedulerStore')
         if (store === undefined) return err(request, workSchedulerStoreAbsent())
@@ -3347,8 +3356,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const store = ctx.get('workSchedulerStore')
         if (store === undefined) return err(request, workSchedulerStoreAbsent())
         try {
-          await store.save(request.payload.workspaceId, request.payload.document)
-          return ok(request, {})
+          const document = await store.save(request.payload.workspaceId, request.payload.document)
+          return ok(request, { document })
         } catch (error: unknown) {
           return err(request, {
             code: 'internal',

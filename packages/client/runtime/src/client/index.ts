@@ -165,6 +165,11 @@ declare module '@deepseek-ai/cordis' {
      * @mode emit
      */
     'connection/reset'(): void
+    /**
+     * The active stream generation was lost; disable mutations until resynchronization.
+     * @mode emit
+     */
+    'connection/lost'(): void
   }
   interface Context {
     slots: import('./slots.ts').SlotRegistry
@@ -226,8 +231,12 @@ export function apply(ctx: Context): void {
       // the only safe moment to drop generation-scoped interaction state.
       if (state === 'reconnecting') {
         sessions.handleDisconnected()
+        ctx.emit('connection/lost')
       }
     },
   })
   ctx.effect(() => () => { loop.stop() }, 'runtime: connection stream loop')
 }
+
+export { WorkSchedulerRuntime, emptySchedulerDocument } from './work-scheduler.ts'
+export type { SchedulerSnapshot } from './work-scheduler.ts'

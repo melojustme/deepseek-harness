@@ -54,3 +54,7 @@ import type { RpcResponse, RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api'
 export function resultOf<T>(response: RpcResponse<T>): RpcResult<T> {
   return response.result
 }
+
+export type { SchedulerCommand, SchedulerAttempt, SchedulerAttemptId, SchedulerCommandId, SchedulerExecutionStatus, SchedulerEvidence } from '@deepseek-ai/dsh-host-apiproxy/api'
+
+export { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-host-apiproxy/api'

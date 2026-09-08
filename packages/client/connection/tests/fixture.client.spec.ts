@@ -57,7 +57,7 @@ describe('createFixtureApi', () => {
     const workspaceA = 'workspace-a' as WorkspaceId
     const workspaceB = 'workspace-b' as WorkspaceId
     const empty: WorkSchedulerDocument = {
-      version: 2,
+      version: 3, revision: 0, attempts: {},
       processes: [],
       tasks: {},
       backlogIds: [],
@@ -65,11 +65,11 @@ describe('createFixtureApi', () => {
       archiveIds: [],
     }
     const document: WorkSchedulerDocument = {
-      version: 2,
+      version: 3, revision: 0, attempts: {},
       processes: [],
       tasks: {
         t1: {
-          id: 't1', description: '检查构建', status: 'ready', reason: '', wakeCondition: '',
+          id: 't1', description: '检查构建', acceptance: [], status: 'ready', reason: '', wakeCondition: '',
           createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
         },
       },
@@ -85,7 +85,7 @@ describe('createFixtureApi', () => {
     expect((await api.workScheduler.save(req({ workspaceId: workspaceA, document }))).result.ok).toBe(true)
     expect((await api.workScheduler.load(req({ workspaceId: workspaceA }))).result).toEqual({
       ok: true,
-      value: { document },
+      value: { document: { ...document, revision: 1 } },
     })
     expect((await api.workScheduler.load(req({ workspaceId: workspaceB }))).result).toEqual({
       ok: true,
