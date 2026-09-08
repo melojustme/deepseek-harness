@@ -12,6 +12,8 @@ Execution uses the selected Git revision, defaulting to HEAD, and excludes uncom
 
 Review displays the fixed log digest, file diff, summary, tool results, and retained artifact directory. Changed files require refreshed evidence. Failed tools require an acceptance reason; rework requires feedback and creates another isolated attempt from the previous snapshot. Approval records a human decision without merging or pushing. Review retains its thread position until approval or explicit asynchronous yielding; restoring the position preserves the waiting task's return location.
 
+Status-board cards support drag/drop and Alt plus arrow keys. Unattempted tasks reorder within their owning queue without crossing attempted tasks; cross-thread placement uses the thread view. Moving into execution asks for confirmation, moving an active task back asks to stop, and moving review work opens approval or rework details. The Host alone creates review evidence and approves it through explicit commands. A revision change during dragging or before confirmation rejects the gesture; disconnected boards reject edits.
+
 ## Data and connection state
 
 `WorkSchedulerRuntime` in the React-free object layer owns the selected document, revision, conditional writes, and periodic refresh. The validated `refreshIntervalMs` configuration controls refresh cadence. Slot stores hold only presentation state. Closing the panel does not stop Host execution or refresh ownership; unloading the plugin disposes the runtime and both slot contributions.

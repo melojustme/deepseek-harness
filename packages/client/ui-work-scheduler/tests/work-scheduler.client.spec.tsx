@@ -124,6 +124,76 @@ function mount(document = taskDocument(), status: SchedulerSnapshot['status'] = 
 afterEach(cleanup)
 
 describe('native work scheduler panel', () => {
+  it('requires confirmation before a keyboard gesture submits execution', async () => {
+    const view = mount()
+    const card = view.getByRole('button', { name: /实现面板/ })
+    fireEvent.keyDown(card, { key: 'ArrowRight', altKey: true })
+    expect(view.command).not.toHaveBeenCalled()
+    expect(view.getByRole('button', { name: '确认执行' })).toBe(globalThis.document.activeElement)
+    fireEvent.click(view.getByRole('button', { name: '确认执行' }))
+    await waitFor(() => {
+      expect(view.command).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'execute', taskId: 'task', expectedRevision: 0 }),
+      )
+    })
+    expect(view.save).not.toHaveBeenCalled()
+  })
+
+  it('rejects a confirmation after the document revision changes', () => {
+    const view = mount()
+    fireEvent.keyDown(view.getByRole('button', { name: /实现面板/ }), { key: 'ArrowRight', altKey: true })
+    act(() => {
+      view.publish({ document: { ...view.snapshot().document, revision: 1 } })
+    })
+    fireEvent.click(view.getByRole('button', { name: '确认执行' }))
+    expect(view.command).not.toHaveBeenCalled()
+    expect(view.getByRole('status').textContent).toContain('看板已更新')
+  })
+
+  it('opens evidence review instead of approving a dropped task', () => {
+    const document = taskDocument()
+    document.attempts[attemptId] = attempt('review')
+    const view = mount(document)
+    fireEvent.keyDown(view.getByRole('button', { name: /实现面板/ }), { key: 'ArrowRight', altKey: true })
+    expect(view.getByRole('button', { name: '通过审查' })).toBeTruthy()
+    expect(view.command).not.toHaveBeenCalled()
+    expect(view.save).not.toHaveBeenCalled()
+  })
+
+  it('cancels the confirmation without stopping an active attempt', () => {
+    const document = taskDocument()
+    document.attempts[attemptId] = attempt('running')
+    const view = mount(document)
+    const card = view.getByRole('button', { name: /实现面板/ })
+    fireEvent.keyDown(card, { key: 'ArrowLeft', altKey: true })
+    expect(view.getByRole('button', { name: '确认停止' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '取消操作' }))
+    expect(view.command).not.toHaveBeenCalled()
+    expect(view.snapshot().document.attempts[attemptId]?.status).toBe('running')
+  })
+
+  it('ignores a stale drag and disables keyboard moves while disconnected', () => {
+    const view = mount()
+    const values = new Map<string, string>()
+    const dataTransfer = {
+      setData: (type: string, value: string) => values.set(type, value),
+      getData: (type: string) => values.get(type) ?? '',
+    }
+    const card = view.getByRole('button', { name: /实现面板/ })
+    fireEvent.dragStart(card, { dataTransfer })
+    act(() => {
+      view.publish({ document: { ...view.snapshot().document, revision: 1 } })
+    })
+    fireEvent.drop(view.getByRole('region', { name: '执行中列' }), { dataTransfer })
+    expect(view.getByRole('status').textContent).toContain('拖动期间看板已更新')
+    act(() => {
+      view.publish({ status: 'error' })
+    })
+    fireEvent.keyDown(card, { key: 'ArrowRight', altKey: true })
+    expect(view.queryByRole('button', { name: '确认执行' })).toBeNull()
+    expect(view.command).not.toHaveBeenCalled()
+  })
+
   it('disables writes before the workspace has loaded', () => {
     const view = mount(taskDocument(), 'loading')
     expect((view.getByRole('button', { name: '新建任务' }) as HTMLButtonElement).disabled).toBe(true)

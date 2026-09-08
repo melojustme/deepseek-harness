@@ -22,6 +22,7 @@ import {
   setTaskStatus,
   wakeTask,
 } from './scheduler.ts'
+import { resolveBoardDrop, type BoardColumn } from './board-drop.ts'
 import type { createWorkSchedulerStore } from './store.ts'
 import css from './WorkScheduler.module.css'
 
@@ -115,6 +116,7 @@ export function SchedulerPanel({
   const document = snapshot.document
   const workspace = workspaces.items.find(item => item.workspaceId === workspaceId)
   const backButton = useRef<HTMLButtonElement>(null)
+  const confirmDropButton = useRef<HTMLButtonElement>(null)
   const [query, setQuery] = useState('')
   const [thread, setThread] = useState('all')
   const [composer, setComposer] = useState(false)
@@ -131,6 +133,16 @@ export function SchedulerPanel({
   const [tab, setTab] = useState('overview')
   const [fullscreen, setFullscreen] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [dragged, setDragged] = useState<{ taskId: string; workspaceId: WorkspaceId; revision: number }>()
+  const [dropTarget, setDropTarget] = useState('')
+  const [dropPosition, setDropPosition] = useState<{ id: string; after: boolean }>()
+  const [pendingDrop, setPendingDrop] = useState<{
+    taskId: string
+    workspaceId: WorkspaceId
+    revision: number
+    kind: 'execute' | 'cancel'
+  }>()
   const [retry, setRetry] = useState<SchedulerCommand>()
   const titleInput = useRef<HTMLTextAreaElement>(null)
   const windowRef = useRef<HTMLDivElement>(null)
@@ -153,6 +165,11 @@ export function SchedulerPanel({
   }, [view.selected, attempt?.id, workspaceId])
   useEffect(() => {
     setComposer(false)
+    setDragged(undefined)
+    setDropTarget('')
+    setDropPosition(undefined)
+    setPendingDrop(undefined)
+    setNotice('')
     setEditing('')
     setDescription('')
     setAcceptance('')
@@ -162,7 +179,13 @@ export function SchedulerPanel({
     actions.select('')
   }, [workspaceId, actions])
   useEffect(() => {
-    if (!view.open) setFullscreen(false)
+    if (!view.open) {
+      setFullscreen(false)
+      setPendingDrop(undefined)
+      setDragged(undefined)
+      setDropTarget('')
+      setDropPosition(undefined)
+    }
   }, [view.open])
   useEffect(() => {
     if (composer) titleInput.current?.focus()
@@ -171,7 +194,8 @@ export function SchedulerPanel({
     if (!view.open) return
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (composer) setComposer(false)
+        if (pendingDrop !== undefined) setPendingDrop(undefined)
+        else if (composer) setComposer(false)
         else if (view.selected) {
           actions.select('')
           selectedButton.current?.focus()
@@ -199,12 +223,13 @@ export function SchedulerPanel({
     return () => {
       globalThis.document.removeEventListener('keydown', keyboard)
     }
-  }, [actions, composer, view.open, view.selected])
+  }, [actions, composer, pendingDrop, view.open, view.selected])
   useEffect(() => {
     if (!view.open || composer) return
-    if (view.selected) backButton.current?.focus()
+    if (pendingDrop !== undefined) confirmDropButton.current?.focus()
+    else if (view.selected) backButton.current?.focus()
     else selectedButton.current?.focus()
-  }, [view.open, view.selected, composer])
+  }, [view.open, view.selected, composer, pendingDrop])
   if (!view.open) return null
   const report = (cause: unknown) => {
     setError(cause instanceof Error ? cause.message : String(cause))
@@ -259,7 +284,11 @@ export function SchedulerPanel({
   const drop = (event: DragEvent, processId: string, index: number) => {
     event.preventDefault()
     event.stopPropagation()
-    if (!ready || view.view !== 'thread') return
+    if (!ready || view.view !== 'thread' || dragged === undefined) return
+    if (dragged.workspaceId !== workspaceId || dragged.revision !== document.revision) {
+      setNotice('拖动期间看板已更新，请重新拖动。')
+      return
+    }
     const taskId = event.dataTransfer.getData('application/x-dsh-task')
     if (
       event.dataTransfer.getData('application/x-dsh-workspace') !== workspaceId ||
@@ -274,6 +303,86 @@ export function SchedulerPanel({
         processId === 'backlog' ? { zone: 'backlog', index } : { zone: 'process', processId, index },
       ),
     ).catch(report)
+  }
+  const boardGesture = (taskId: string, destination: BoardColumn, targetId?: string, after = false) => {
+    if (!ready || pendingDrop !== undefined) return
+    setNotice('')
+    const intent = resolveBoardDrop(document, taskId, destination, targetId, after)
+    if (intent.kind === 'reject') {
+      setNotice(intent.reason)
+      return
+    }
+    if (intent.kind === 'none') return
+    if (intent.kind === 'save') {
+      void saveDocument(intent.document)
+        .then(() => {
+          if (workspaceId === currentWorkspace.current) setNotice('任务顺序已保存。')
+        })
+        .catch((cause: unknown) => {
+          if (workspaceId === currentWorkspace.current) report(cause)
+        })
+      return
+    }
+    if (intent.kind === 'review' || intent.kind === 'rework') {
+      actions.select(taskId)
+      setNotice(intent.kind === 'review' ? '请检查本轮结果，再点击通过审查。' : '请填写返工意见，再提交新一轮执行。')
+      return
+    }
+    setPendingDrop({ taskId, workspaceId, revision: document.revision, kind: intent.kind })
+  }
+  const boardDrop = (event: DragEvent, destination: BoardColumn, targetId?: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDropTarget('')
+    setDropPosition(undefined)
+    const transfer = dragged
+    setDragged(undefined)
+    if (transfer === undefined || transfer.workspaceId !== workspaceId || !ready) return
+    if (transfer.revision !== document.revision) {
+      setNotice('拖动期间看板已更新，请重新拖动。')
+      return
+    }
+    if (
+      event.dataTransfer.getData('application/x-dsh-task') !== transfer.taskId ||
+      event.dataTransfer.getData('application/x-dsh-workspace') !== workspaceId
+    )
+      return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    boardGesture(
+      transfer.taskId,
+      destination,
+      targetId,
+      targetId !== undefined && event.clientY > bounds.top + bounds.height / 2,
+    )
+  }
+  const confirmDrop = () => {
+    if (pendingDrop === undefined || !ready) return
+    if (pendingDrop.workspaceId !== workspaceId || pendingDrop.revision !== document.revision) {
+      setPendingDrop(undefined)
+      setNotice('看板已更新，请重新选择操作。')
+      return
+    }
+    const intent = resolveBoardDrop(document, pendingDrop.taskId, pendingDrop.kind === 'execute' ? 'running' : 'ready')
+    if (intent.kind !== pendingDrop.kind) {
+      setPendingDrop(undefined)
+      setNotice('任务状态已变化，请重新选择操作。')
+      return
+    }
+    const item = currentAttempt(document, pendingDrop.taskId)
+    const operation: SchedulerCommand | undefined =
+      pendingDrop.kind === 'execute'
+        ? {
+          kind: 'execute',
+          taskId: pendingDrop.taskId,
+          baseRef: 'HEAD',
+          expectedRevision: pendingDrop.revision,
+          commandId: newCommandId(),
+        }
+        : item === undefined
+          ? undefined
+          : { kind: 'cancel', attemptId: item.id }
+    setPendingDrop(undefined)
+    if (operation !== undefined) void runCommand(operation)
   }
   const move = (direction: number) => {
     if (task === undefined) return
@@ -484,6 +593,32 @@ export function SchedulerPanel({
                   : '加载中…'}
           </span>
         </div>
+        {notice && (
+          <p className={css.deliveryNotice} role="status">
+            {notice}
+          </p>
+        )}
+        {pendingDrop !== undefined && (
+          <section className={css.dropConfirmation} aria-label="确认任务操作">
+            <h2>{pendingDrop.kind === 'execute' ? '开始执行这个任务？' : '停止这个任务？'}</h2>
+            <p>{document.tasks[pendingDrop.taskId]?.description}</p>
+            <p>
+              {pendingDrop.kind === 'execute'
+                ? '将从 HEAD 创建独立工作目录并使用当前模型执行。'
+                : '将请求停止本轮任务，等待资源释放后更新状态。'}
+            </p>
+            <button
+              onClick={() => {
+                setPendingDrop(undefined)
+              }}
+            >
+              取消操作
+            </button>
+            <button ref={confirmDropButton} className={css.primaryAction} disabled={!ready} onClick={confirmDrop}>
+              {pendingDrop.kind === 'execute' ? '确认执行' : '确认停止'}
+            </button>
+          </section>
+        )}
         {(error || snapshot.error) && (
           <div className={css.deliveryError} role="alert">
             {error || snapshot.error}
@@ -601,12 +736,23 @@ export function SchedulerPanel({
               return (
                 <section
                   className={css.deliveryLane}
+                  data-drop-target={dropTarget === key || undefined}
+                  aria-label={`${label}列`}
                   key={key}
                   onDragOver={(event) => {
-                    if (ready && view.view === 'thread') event.preventDefault()
+                    if (ready && dragged !== undefined && pendingDrop === undefined) {
+                      event.preventDefault()
+                      setDropTarget(key)
+                    }
                   }}
                   onDrop={(event) => {
-                    drop(event, key, key === 'backlog' ? document.backlogIds.length : laneIds.length)
+                    if (view.view === 'board') boardDrop(event, key as BoardColumn)
+                    else {
+                      setDragged(undefined)
+                      setDropTarget('')
+                      setDropPosition(undefined)
+                      drop(event, key, key === 'backlog' ? document.backlogIds.length : laneIds.length)
+                    }
                   }}
                 >
                   <h2>
@@ -633,19 +779,65 @@ export function SchedulerPanel({
                     return (
                       <button
                         className={css.deliveryCard}
-                        draggable={ready && view.view === 'thread' && current === undefined}
+                        draggable={
+                          ready && pendingDrop === undefined && (view.view === 'board' || current === undefined)
+                        }
+                        data-dragging={dragged?.taskId === id || undefined}
+                        data-drop-position={
+                          dropPosition?.id === id ? (dropPosition.after ? 'after' : 'before') : undefined
+                        }
+                        onDragOver={(event) => {
+                          if (view.view !== 'board' || !ready || dragged === undefined || pendingDrop !== undefined)
+                            return
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setDropTarget(key)
+                          const bounds = event.currentTarget.getBoundingClientRect()
+                          setDropPosition({ id, after: event.clientY > bounds.top + bounds.height / 2 })
+                        }}
+                        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                        onDragEnd={() => {
+                          setDragged(undefined)
+                          setDropTarget('')
+                          setDropPosition(undefined)
+                        }}
+                        onKeyDown={(event) => {
+                          if (!event.altKey || view.view !== 'board' || !ready) return
+                          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                          event.preventDefault()
+                          selectedButton.current = event.currentTarget
+                          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                            const index =
+                              lanes.findIndex(([lane]) => lane === key) + (event.key === 'ArrowLeft' ? -1 : 1)
+                            const destination = lanes[index]?.[0]
+                            if (destination !== undefined) boardGesture(id, destination as BoardColumn)
+                          } else {
+                            const index = rows.indexOf(id) + (event.key === 'ArrowUp' ? -1 : 1)
+                            const target = rows[index]
+                            if (target !== undefined)
+                              boardGesture(id, key as BoardColumn, target, event.key === 'ArrowDown')
+                          }
+                        }}
                         onDragStart={(event) => {
+                          if (workspaceId === undefined || !ready) {
+                            event.preventDefault()
+                            return
+                          }
+                          selectedButton.current = event.currentTarget
+                          setDragged({ taskId: id, workspaceId, revision: document.revision })
+                          event.dataTransfer.effectAllowed = 'move'
                           event.dataTransfer.setData('application/x-dsh-task', id)
-                          if (workspaceId !== undefined)
-                            event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
+                          event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
                         }}
                         onDrop={(event) => {
-                          if (view.view === 'thread')
+                          if (view.view === 'board') boardDrop(event, key as BoardColumn, id)
+                          else
                             drop(event, key, key === 'backlog' ? document.backlogIds.indexOf(id) : laneIds.indexOf(id))
                         }}
                         aria-pressed={view.selected === id}
                         key={id}
                         onClick={(event) => {
+                          if (dragged !== undefined) return
                           selectedButton.current = event.currentTarget
                           actions.select(id)
                         }}

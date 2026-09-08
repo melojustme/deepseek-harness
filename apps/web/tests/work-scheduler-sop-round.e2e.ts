@@ -139,6 +139,34 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     await dialog.getByRole('button', { name: '保存待办' }).click()
     const card = dialog.getByRole('button', { name: /校验新建任务体验/ })
     await card.waitFor()
+    await dialog.getByRole('button', { name: '新建任务', exact: true }).click()
+    await dialog.getByRole('textbox', { name: '任务描述' }).fill('校验拖动排序')
+    await dialog.getByRole('textbox', { name: '验收条件（每行一项）' }).fill('排序保存在 Host')
+    await dialog.getByRole('button', { name: '保存待办' }).click()
+    const secondCard = dialog.getByRole('button', { name: /校验拖动排序/ })
+    await secondCard.waitFor()
+    const selectedWorkspaceId = await dialog.getByLabel('看板工作区').inputValue()
+    await secondCard.dragTo(card, { targetPosition: { x: 20, y: 10 } })
+    await expect
+      .poll(async () => {
+        const workspace = scaffold.ctx.workspaceRegistry.list().find(item => item.id === selectedWorkspaceId)
+        if (workspace === undefined) return []
+        const current = (await scaffold.ctx.workSchedulerStore.load(workspace.id)).document
+        return current.backlogIds.map(id => current.tasks[id]?.description)
+      })
+      .toEqual(['校验拖动排序', '校验新建任务体验'])
+    await card.dragTo(dialog.getByRole('region', { name: '执行中列' }))
+    await dialog.getByRole('button', { name: '确认执行' }).waitFor()
+    const dragSnapshot = await captureStableAria(page, '[aria-label="确认任务操作"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(
+      fileURLToPath(new URL('./snapshots/work-scheduler-sop-round/drag.expected.md', import.meta.url)),
+      dragSnapshot,
+      MODE,
+    )
+    await dialog.getByRole('button', { name: '取消操作' }).click()
+    const currentWorkspace = scaffold.ctx.workspaceRegistry.list().find(item => item.id === selectedWorkspaceId)
+    if (currentWorkspace === undefined) throw new Error('expected workspace')
+    expect((await scaffold.ctx.workSchedulerStore.load(currentWorkspace.id)).document.attempts).toEqual({})
     await card.click()
     expect(await dialog.locator('[aria-label="状态看板"]').isVisible()).toBe(false)
     await dialog.getByRole('button', { name: '执行任务', exact: true }).waitFor()
@@ -183,7 +211,12 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
   })
 
   it('keeps a closed fixture inventory and a clean browser console', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'ui.expected.md', 'details.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, [
+      'session.jsonl',
+      'ui.expected.md',
+      'details.expected.md',
+      'drag.expected.md',
+    ])
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

@@ -1,0 +1,6 @@
+- region "确认任务操作":
+  - heading "开始执行这个任务？" [level=2]
+  - paragraph: 校验拖动排序
+  - paragraph: 将从 HEAD 创建独立工作目录并使用当前模型执行。
+  - button "取消操作"
+  - button "确认执行"

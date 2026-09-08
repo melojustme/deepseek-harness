@@ -83,6 +83,14 @@
 .deliveryContent { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
 .deliveryBoard { display: flex; flex: 1; gap: 18px; padding: 24px; overflow: auto; background: var(--dsw-alias-bg-module-platform); }
 .deliveryLane { flex: 1; min-width: 170px; }
+.deliveryLane[data-drop-target] { outline: 2px dashed var(--dsw-static-deepseek-500); outline-offset: 5px; border-radius: 10px; }
+.deliveryCard[draggable='true'] { cursor: grab; }
+.deliveryCard[data-dragging] { opacity: .5; }
+.deliveryCard[data-drop-position='before'] { box-shadow: 0 -4px 0 var(--dsw-static-deepseek-500); }
+.deliveryCard[data-drop-position='after'] { box-shadow: 0 4px 0 var(--dsw-static-deepseek-500); }
+.dropConfirmation { padding: 18px 24px; border-bottom: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); }
+.dropConfirmation h2 { margin: 0; font-size: 18px; }
+.dropConfirmation button + button { margin-left: 10px; }
 .deliveryLane h2 { font-size: 13px; display: flex; justify-content: space-between; }
 .deliveryWindow .deliveryCard { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 18px; margin: 12px 0; border-radius: 12px; text-align: left; }
 .deliveryCard strong { white-space: pre-wrap; overflow-wrap: anywhere; }

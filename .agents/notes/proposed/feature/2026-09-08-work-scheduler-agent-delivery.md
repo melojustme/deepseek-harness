@@ -24,6 +24,8 @@ The [interaction design](../../../../docs/design/work-scheduler/agent-delivery/i
 
 **Reuse any associated Session and diff the original Workspace.** Existing associations can represent several SOP tasks, and shared filesystem changes cannot be assigned reliably to one execution. Dedicated attempts and worktrees make evidence reviewable at the cost of explicit Git and artifact-retention requirements.
 
+Gesture handling resolves against a captured Workspace revision and rechecks before confirmation. Sorting preserves attempted tasks at their recorded positions, including indirect shifts caused by another card. Dragging reviewed work opens its evidence instead of recording approval; moving running work back requests cancellation instead of resetting its status. The keyless Web scenario checks actual drag ordering through durable storage and verifies that cancelling execution confirmation creates no attempt.
+
 ## Acceptance criteria
 
 The design package provides linked bilingual requirements and architecture plus an interactive simulated board, execution progress, review, approval, rework, and failure states. Implementation acceptance is defined in the requirements and needs real composition, logged input, race coverage, and native execution evidence before this note can move to implemented.
