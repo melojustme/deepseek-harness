@@ -1,0 +1,25 @@
+- dialog "工作调度":
+  - banner:
+    - heading "工作调度" [level=1]
+    - paragraph: workspace · 运行 0 · 排队 0
+    - group: 看板选项
+    - button "全屏"
+    - button "关闭"
+  - main:
+    - complementary "任务详情":
+      - button "返回看板"
+      - heading "校验新建任务体验" [level=2]
+      - paragraph: 尚未执行
+      - navigation:
+        - button "概览" [pressed]
+        - button "执行记录"
+        - button "文件差异"
+      - heading "验收条件" [level=3]
+      - list:
+        - listitem: 任务可以保存
+        - listitem: 返回看板保留筛选
+      - paragraph: 执行使用所选 Git 版本，不带入原工作区未提交改动。将在隔离 worktree 执行并创建仅本地的内部快照。
+      - group: 高级执行设置
+      - button "执行任务"
+      - group: 编辑与任务安排
+      - group: 执行历史

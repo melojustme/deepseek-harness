@@ -18,13 +18,23 @@ Review displays the fixed log digest, file diff, summary, tool results, and reta
 
 Edits remain disabled while loading, saving, or disconnected. Failed saves retain editor fields, and uncertain execution submissions retain their command identity for retry. Workspace generation fences reject late responses. Import validates version 3 and rejects malformed references, duplicate placement, older formats, or attempts that differ from the Host's records; it does not repair or discard execution evidence. Export downloads the complete versioned document.
 
+The board, task editor, and task details occupy separate views of the same window. Returning from details preserves filters and focuses the selected card. Board import/export, Git revisions, thread management, and task arrangement are expandable secondary controls. See the [interaction design](../../../docs/design/work-scheduler/agent-delivery/interaction.md) for the staged workflow and drag semantics.
+
 ## Window and accessibility
 
 The centered desktop window supports resizing and application fullscreen. Small viewports use the full viewport and replace the board with selected-task details. Escape closes the innermost editor or details before closing the window. Details return focus to their task card, Tab remains within the dialog, and execution state has textual labels alongside progress semantics.
 
 ## Model Experience
 
+### Logged task input
+
+#### What the model sees
+
 The panel itself adds no model input. Explicit execution delegates the task description, acceptance conditions, and rework feedback to the provider's logged native Session input. See [the provider's Model Experience](../../work-scheduler/work-scheduler-execution-local/README.md#model-experience).
+
+#### Token effect
+
+No direct input; the execution provider owns task input and the selected preset owns the request.
 
 #### KV Cache effect
 

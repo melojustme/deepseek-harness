@@ -4,6 +4,8 @@ English | [中文](design.zh.md)
 
 Status: proposed, not implemented. This is the technical reference for the [requirements](requirements.md); the [prototype](../../../../packages/client/ui-work-scheduler/prototype/agent-delivery.html) validates interactions only. The [Agent Note](../../../../.agents/notes/proposed/feature/2026-09-08-work-scheduler-agent-delivery.md) records the rationale.
 
+The [interaction design](interaction.md) owns page navigation, drag semantics, and the phased UI implementation; its exported prototype is the current interaction reference.
+
 ## Existing implementation and extension points
 
 At commit `b14d2218f9`, the Client contributes its panel through `sidebar.footer.action` and `shell.overlay`; the Host store saves whole version 2 documents, and the SOP tool updates stages through that store. Start and Complete currently change planning state only, while Session creation seeds an unsent draft. The port must distinguish these manual planning states from actual execution outcomes.

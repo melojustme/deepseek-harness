@@ -14,6 +14,8 @@ Status: proposed
 
 [现有调度器决策](../../implemented/feature/2026-08-18-web-work-scheduler.zh.md)继续有效：其规划语义、SOP 所有权和窗口组合仍然适用。本提案在该基础上增加执行所有权。
 
+[交互设计](../../../../docs/design/work-scheduler/agent-delivery/interaction.zh.md)将完整看板、编辑器与任务详情分为独立视图。折叠高级控件使执行与审查决定保持突出。原型拖动只模拟交互；正式产品必须提交命令并保留 Host 拥有的证据，不能直接赋值状态标签。也考虑过固定窄侧栏，但较长验收条件与文件差异需要完整任务页的宽度。
+
 ## 考虑过的替代方案
 
 **嵌入 AutoMaker 应用。** 可以保留现成界面，但会引入独立的提供商、会话和存储体系，而不是扩展用户的 Harness 面板。

@@ -1,89 +1,15 @@
 - dialog "工作调度":
   - banner:
     - heading "工作调度" [level=1]
-    - paragraph: workspace · 1 个线程可以继续推进
-    - button "新建":
-      - img
-      - text: 新建
-      - img
-    - button "使用说明":
-      - img
-    - button "导出":
-      - img
-    - button "导入"
-    - button "全屏":
-      - img
-    - button "关闭":
-      - img
+    - paragraph: workspace · 运行 0 · 排队 0
+    - group: 看板选项
+    - button "全屏"
+    - button "关闭"
   - heading "新建任务" [level=2]
-  - button "取消新建任务":
-    - img
-  - text: 任务内容
-  - textbox "任务内容":
-    - /placeholder: 描述要推进的工作
-    - text: 校验新建任务体验
-  - group "放入":
-    - text: 放入
-    - radio "待分配" [checked]
-    - text: 待分配
-    - radio "Development SOP"
-    - text: Development SOP
-  - text: 关联对话
-  - emphasis: 可选
-  - button "选择关联对话" [expanded]:
-    - img
-    - text: 不关联对话
-    - img
-  - img
-  - searchbox "搜索对话"
-  - button "新建并打开对话"
-  - button "不关联对话":
-    - text: 不关联对话
-    - img
-  - separator: 已有对话
-  - button "关联对话：workspace": workspace 当前
-  - button "关联对话：Use sync_work_scheduler exactly once wit": Use sync_work_scheduler exactly once wit
+  - text: 任务描述
+  - textbox "任务描述": 校验新建任务体验
+  - text: 验收条件（每行一项）
+  - textbox "验收条件（每行一项）": 任务可以保存 返回看板保留筛选
+  - group: 更多选项
   - button "取消"
-  - button "添加任务":
-    - img
-    - text: 添加任务
-  - main:
-    - region "线程看板":
-      - textbox "线程名称": Development SOP
-      - text: 2 项
-      - list "Development SOP任务":
-        - listitem:
-          - text: "#1 进行中 Implementation"
-          - progressbar "工作进度 1/3"
-          - text: Implement progress 1/3
-          - button "打开会话：Use sync_work_scheduler exactly once wit":
-            - img
-            - text: Use sync_work_scheduler exactly once wit
-          - button "同步阻塞":
-            - img
-          - button "异步"
-          - button "完成":
-            - img
-        - listitem:
-          - text: "#2 就绪 Verification"
-          - button "打开会话：Use sync_work_scheduler exactly once wit":
-            - img
-            - text: Use sync_work_scheduler exactly once wit
-          - button "开始":
-            - img
-          - button "同步阻塞":
-            - img
-          - button "异步"
-          - button "完成":
-            - img
-    - complementary:
-      - heading "下一步" [level=2]
-      - text: Development SOP
-      - strong: Implementation
-      - heading "待分配 0" [level=2]
-      - heading "异步阻塞 0" [level=2]
-      - heading "归档 1" [level=2]:
-        - img
-        - text: 归档 1
-      - text: Intake
-      - button "恢复"
+  - button "保存待办"

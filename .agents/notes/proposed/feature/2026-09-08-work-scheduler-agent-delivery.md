@@ -14,6 +14,8 @@ Extend the scheduler with Host-owned attempts, dedicated native Sessions, isolat
 
 The [existing scheduler decision](../../implemented/feature/2026-08-18-web-work-scheduler.md) remains active: its planning semantics, SOP ownership, and window composition still apply. This proposal adds execution ownership to that foundation.
 
+The [interaction design](../../../../docs/design/work-scheduler/agent-delivery/interaction.md) separates the full-width board, editor, and task details. Collapsed advanced controls keep execution and review decisions visible. Prototype drag operations are simulated; the product must dispatch commands and preserve Host-owned evidence instead of assigning status labels. A permanent narrow inspector was considered, but long acceptance criteria and diffs need the task page width.
+
 ## Alternatives considered
 
 **Embed AutoMaker's application.** This preserves a ready-made UI but introduces a separate provider, session, and storage system instead of extending the user's Harness panel.

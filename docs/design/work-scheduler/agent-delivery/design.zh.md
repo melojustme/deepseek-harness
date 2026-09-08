@@ -4,6 +4,8 @@
 
 状态：提案，尚未实现。本文是[需求](requirements.zh.md)对应的技术参考；[原型](../../../../packages/client/ui-work-scheduler/prototype/agent-delivery.html)只验证交互。设计理由见[Agent Note](../../../../.agents/notes/proposed/feature/2026-09-08-work-scheduler-agent-delivery.zh.md)。
 
+[交互设计](interaction.zh.md)定义页面导航、拖动语义和分阶段界面实施；其中导出的原型为当前交互参考。
+
 ## 现有实现与扩展位置
 
 提交 `b14d2218f9` 的 Client 通过 `sidebar.footer.action` 和 `shell.overlay` 提供调度面板；Host store 保存版本 2 整份文档；SOP 工具通过同一个 store 更新阶段。当前“开始”和“完成”只改调度状态，新建 Session 只预填草稿。移植必须把这些手动规划状态与真实执行结果分开。
