@@ -35,7 +35,7 @@ export interface MoveTarget {
   index: number
 }
 
-import { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-client-connection/client'
+import { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-host-apiproxy/api'
 
 /**
  * Create an empty scheduler document.
