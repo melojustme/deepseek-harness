@@ -14,7 +14,7 @@ Status: proposed
 
 [现有调度器决策](../../implemented/feature/2026-08-18-web-work-scheduler.zh.md)继续有效：其规划语义、SOP 所有权和窗口组合仍然适用。本提案在该基础上增加执行所有权。
 
-[交互设计](../../../../docs/design/work-scheduler/agent-delivery/interaction.zh.md)将完整看板、编辑器与任务详情分为独立视图。折叠高级控件使执行与审查决定保持突出。原型拖动只模拟交互；正式产品必须提交命令并保留 Host 拥有的证据，不能直接赋值状态标签。也考虑过固定窄侧栏，但较长验收条件与文件差异需要完整任务页的宽度。
+[交互设计](../../../../docs/design/work-scheduler/agent-delivery/interaction.zh.md)将完整看板、编辑器与任务详情分为独立视图。已交付的浮层默认使用规划列；执行／审查看板是可选的高级视图，个人规划移动不会创建 Host 证据。[规划优先看板决策](../../implemented/feature/2026-11-04-work-scheduler-planning-first-board.zh.md)拥有这一拆分。折叠高级控件使执行与审查决定保持突出。原型拖动只模拟交互；正式产品必须提交命令并保留 Host 拥有的证据，不能直接赋值状态标签。也考虑过固定窄侧栏，但较长验收条件与文件差异需要完整任务页的宽度。
 
 ## 考虑过的替代方案
 

@@ -44,6 +44,16 @@ const EMPTY_DOCUMENT: WorkSchedulerDocument = {
   version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [],
 }
 
+/** True when a payload is a version-3 board with no tasks, lanes, or attempts. */
+function isClearedDocument(document: WorkSchedulerDocument): boolean {
+  return document.processes.length === 0
+    && document.backlogIds.length === 0
+    && document.blockedIds.length === 0
+    && document.archiveIds.length === 0
+    && Object.keys(document.tasks).length === 0
+    && Object.keys(document.attempts).length === 0
+}
+
 /**
  * The store service: opens the `work_scheduler` domain once on activation and
  * serves reads from memory and writes through the domain's single write chain
@@ -82,15 +92,17 @@ export class WorkSchedulerStoreService extends Service implements WorkSchedulerS
   }
 
   save(workspaceId: WorkspaceId, document: WorkSchedulerDocument): Promise<WorkSchedulerDocument> {
-    return this.update(workspaceId, current => {
+    return this.update(workspaceId, (current) => {
       if (document.revision !== current.revision) throw new Error('看板已被更新，请刷新后重试；当前草稿尚未保存。')
-      if (JSON.stringify(document.attempts) !== JSON.stringify(current.attempts)) throw new Error('执行和审查记录只能通过执行命令修改。')
-      for (const attempt of Object.values(current.attempts)) {
-        if (JSON.stringify(document.tasks[attempt.taskId]) !== JSON.stringify(current.tasks[attempt.taskId])) {
-          throw new Error('已有执行记录的任务不能被规划写入覆盖；请使用返工。')
+      if (!isClearedDocument(document)) {
+        if (JSON.stringify(document.attempts) !== JSON.stringify(current.attempts)) throw new Error('执行和审查记录只能通过执行命令修改。')
+        for (const attempt of Object.values(current.attempts)) {
+          if (JSON.stringify(document.tasks[attempt.taskId]) !== JSON.stringify(current.tasks[attempt.taskId])) {
+            throw new Error('已有执行记录的任务不能被规划写入覆盖；请使用返工。')
+          }
+          const placement = (value: WorkSchedulerDocument) => [...value.processes.map(process => [process.id, process.taskIds.indexOf(attempt.taskId)]), ['backlog', value.backlogIds.indexOf(attempt.taskId)], ['blocked', value.blockedIds.indexOf(attempt.taskId)], ['archive', value.archiveIds.indexOf(attempt.taskId)]].filter(row => row[1] !== -1)
+          if (JSON.stringify(placement(document)) !== JSON.stringify(placement(current))) throw new Error('已有执行记录的任务不能重新排序。')
         }
-        const placement = (value: WorkSchedulerDocument) => [...value.processes.map(process => [process.id, process.taskIds.indexOf(attempt.taskId)]), ['backlog', value.backlogIds.indexOf(attempt.taskId)], ['blocked', value.blockedIds.indexOf(attempt.taskId)], ['archive', value.archiveIds.indexOf(attempt.taskId)]].filter(row => row[1] !== -1)
-        if (JSON.stringify(placement(document)) !== JSON.stringify(placement(current))) throw new Error('已有执行记录的任务不能重新排序。')
       }
       Object.assign(current, structuredClone(document))
     })

@@ -2,14 +2,52 @@
   - banner:
     - heading "工作调度" [level=1]
     - paragraph: workspace · 运行 0 · 排队 0
+    - button "清空看板"
     - group: 看板选项
     - button "全屏"
     - button "关闭"
+  - combobox "看板工作区":
+    - option "workspace" [selected]
+  - textbox "搜索任务"
+  - button "添加列"
+  - text: 已连接
   - heading "新建任务" [level=2]
   - text: 任务描述
-  - textbox "任务描述": 校验新建任务体验
-  - text: 验收条件（每行一项）
-  - textbox "验收条件（每行一项）": 任务可以保存 返回看板保留筛选
+  - textbox "任务描述":
+    - /placeholder: 要做什么
+    - text: 校验新建任务体验
+  - text: 验收条件（可选，每行一项）
+  - textbox "验收条件（可选，每行一项）":
+    - /placeholder: 可选，每行一项
+    - text: 任务可以保存 返回看板保留筛选
+  - text: 放到
+  - combobox "放到":
+    - option "待办" [selected]
+    - option "Development SOP"
   - group: 更多选项
   - button "取消"
-  - button "保存待办"
+  - button "添加任务"
+  - main:
+    - region "待办列":
+      - heading "待办 0" [level=2]
+      - paragraph: 暂无任务
+    - region "Development SOP列":
+      - heading "Development SOP 2" [level=2]
+      - textbox "列名称 Development SOP": Development SOP
+      - button "Development SOP Implementation 进行中":
+        - text: Development SOP
+        - strong: Implementation
+        - text: 进行中
+      - button "Development SOP Verification 待办":
+        - text: Development SOP
+        - strong: Verification
+        - text: 待办
+    - region "已暂停列":
+      - heading "已暂停 0" [level=2]
+      - paragraph: 暂无任务
+    - region "已完成列":
+      - heading "已完成 1" [level=2]
+      - button "待办 Intake 已完成":
+        - text: 待办
+        - strong: Intake
+        - text: 已完成

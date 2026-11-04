@@ -2,13 +2,15 @@
   - banner:
     - heading "工作调度" [level=1]
     - paragraph: workspace · 运行 0 · 排队 0
+    - button "清空看板"
     - group: 看板选项
     - button "全屏"
     - button "关闭"
+  - status: 已勾选完成。
   - main:
     - complementary "任务详情":
       - button "返回看板"
-      - heading "校验新建任务体验" [level=2]
+      - heading "校验拖动排序" [level=2]
       - paragraph: 尚未执行
       - navigation:
         - button "概览" [pressed]
@@ -16,10 +18,24 @@
         - button "文件差异"
       - heading "验收条件" [level=3]
       - list:
-        - listitem: 任务可以保存
-        - listitem: 返回看板保留筛选
+        - listitem: 排序保存在 Host
       - paragraph: 执行使用所选 Git 版本，不带入原工作区未提交改动。将在隔离 worktree 执行并创建仅本地的内部快照。
       - group: 高级执行设置
       - button "执行任务"
-      - group: 编辑与任务安排
+      - group:
+        - text: 任务安排
+        - button "编辑任务"
+        - button "创建草稿会话"
+        - button "上移"
+        - button "下移"
+        - button "勾选完成"
+        - button "暂停并等待"
+        - button "让后续任务先做"
+        - button "恢复任务"
+        - text: 放到
+        - combobox "放到":
+          - option "待办" [selected]
+          - option "Development SOP"
+          - option "已暂停"
+          - option "已完成"
       - group: 执行历史

@@ -75,7 +75,7 @@ Check evidence comes from actual tool calls and results, naming the command, wor
 
 ## Interaction and accessibility
 
-The window retains resizing and fullscreen. The main area offers status-board and thread views, with Workspace, connection state, capacity, search, and creation controls above. Task selection exposes description, acceptance conditions, attempts, and Overview / Log / Diff tabs.
+The window retains resizing and fullscreen. The main area defaults to a planning board and offers an optional execution/review board under board options, with Workspace, connection state, capacity, search, and creation controls above. Task selection exposes description, acceptance conditions, attempts, and Overview / Log / Diff tabs.
 
 Running tasks show native Todo counts and current tool activity. Waiting tasks link to the native approval or question. Review provides approval, feedback, and a full Session entry. Empty, missing-Workspace, loading, error, disconnected, and conflicting states have textual explanations; disconnected clients cannot mutate. Small screens use a single column and fullscreen details with a Back control.
 

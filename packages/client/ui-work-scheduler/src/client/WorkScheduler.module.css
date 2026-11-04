@@ -107,6 +107,10 @@
 .deliveryDiff { font: 12px/1.7 monospace; background: var(--dsw-alias-bg-layer-2); padding: 10px; }
 .deliveryNotice { border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); padding: 10px; font-size: 12px; }
 .deliveryComposer { box-sizing: border-box; width: 100%; max-width: 820px; flex: 1; min-height: 0; padding: 28px; margin: 0 auto; overflow: auto; }
+.inlineComposer { box-sizing: border-box; width: 100%; padding: 16px 24px; border-bottom: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); display: grid; gap: 10px; }
+.inlineComposer h2 { margin: 0; font-size: 15px; }
+.inlineComposer label { display: grid; gap: 6px; }
+.inlineComposer textarea { min-height: 52px; }
 .deliveryWindow [hidden] { display: none !important; }
 .deliveryWindow .primaryAction { background: var(--dsw-alias-button-primary-fill); border-color: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
 .deliveryWindow summary { cursor: pointer; padding: 10px 0; color: var(--dsw-alias-label-secondary); }

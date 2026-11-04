@@ -59,7 +59,13 @@ export class WorkSchedulerRuntime {
   /** Refresh after a reconnect or explicit retry; mutations never consume stale reads. */
   async refresh(): Promise<void> {
     const workspaceId = this.state.workspaceId
-    if (this.disposed || !this.connected || workspaceId === undefined || this.refreshGeneration === this.generation || this.mutationPending) return
+    if (
+      this.disposed
+      || !this.connected
+      || workspaceId === undefined
+      || this.refreshGeneration === this.generation
+      || this.mutationPending
+    ) return
     const generation = this.generation
     this.refreshGeneration = generation
     try {
@@ -75,7 +81,8 @@ export class WorkSchedulerRuntime {
   }
 
   /**
-   * Save a planning mutation against the current revision; execution fields remain Host-owned.
+   * Save a planning mutation against the current revision. Execution fields remain Host-owned
+   * unless the payload is a version-compatible empty document, which replaces this Workspace record.
    * @param transform - Pure document edit.
    * @returns Completion after durability, or rejection with the draft retained by its caller.
    */

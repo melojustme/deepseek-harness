@@ -39,10 +39,25 @@ import { workSchedulerDocumentSchema } from '@deepseek-ai/dsh-host-apiproxy/api'
 
 /**
  * Create an empty scheduler document.
- * @returns a version 3 document with no processes or tasks.
+ * @param revision - Durable revision to preserve for a conditional write; omitted for an unpersisted board.
+ * @returns a version 3 document with no processes, tasks, or attempts.
  */
-export function createSchedulerState(): SchedulerState {
-  return { version: 3, revision: 0, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+export function createSchedulerState(revision = 0): SchedulerState {
+  return { version: 3, revision, attempts: {}, processes: [], tasks: {}, backlogIds: [], blockedIds: [], archiveIds: [] }
+}
+
+/**
+ * Detect a version-compatible empty board used to reset one Workspace document.
+ * @param state - Candidate document.
+ * @returns True when the document has no lanes, tasks, or attempts.
+ */
+export function isClearedSchedulerDocument(state: SchedulerState): boolean {
+  return state.processes.length === 0
+    && state.backlogIds.length === 0
+    && state.blockedIds.length === 0
+    && state.archiveIds.length === 0
+    && Object.keys(state.tasks).length === 0
+    && Object.keys(state.attempts).length === 0
 }
 
 function copyState(state: SchedulerState): SchedulerState {
@@ -73,7 +88,7 @@ function id(prefix: string): string {
  */
 export function addProcess(state: SchedulerState, name: string, processId = id('thread')): SchedulerState {
   const next = copyState(state)
-  next.processes.push({ id: processId, name: name.trim() || `线程 ${next.processes.length + 1}`, taskIds: [] })
+  next.processes.push({ id: processId, name: name.trim() || `列 ${next.processes.length + 1}`, taskIds: [] })
   return next
 }
 
