@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { SchedulerAttempt, SessionId } from '@deepseek-ai/dsh-client-connection/client'
+import type {
+  SchedulerAttempt, SchedulerAttemptId, SchedulerCommandId, SessionId,
+} from '@deepseek-ai/dsh-client-connection/client'
 import {
   addProcess, addTask, archiveTask, createSchedulerState, isClearedSchedulerDocument, moveTask,
   normalizeSchedulerState, removeTask, renameProcess, runnableTasks, setTaskStatus, wakeTask,
@@ -144,14 +146,14 @@ describe('work scheduler domain', () => {
     expect(state.backlogIds).toEqual(['t2'])
     const attempted = addTask(createSchedulerState(), { id: 'kept', description: '有执行' })
     attempted.attempts.a1 = {
-      id: 'a1',
+      id: 'a1' as SchedulerAttemptId,
       taskId: 'kept',
-      commandId: 'execute',
+      commandId: 'execute' as SchedulerCommandId,
       status: 'running',
       description: '有执行',
       acceptance: [],
       feedback: '',
-      sessionId: 'session-1',
+      sessionId: 'session-1' as SessionId,
       createdAt: '',
       updatedAt: '',
     } as SchedulerAttempt
