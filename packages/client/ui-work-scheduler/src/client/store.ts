@@ -2,9 +2,12 @@
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-connection/client'
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 
+/** Default personal kanban versus the optional execution/review board. */
+export type SchedulerView = 'planning' | 'execution'
+
 interface ViewState {
   open: boolean
-  view: 'board' | 'thread'
+  view: SchedulerView
   selected: string
   workspaceId: WorkspaceId | undefined
 }
@@ -14,7 +17,7 @@ type ViewActions = {
   close: (draft: ViewState) => void
   select: (draft: ViewState, id: string) => void
   workspace: (draft: ViewState, id: WorkspaceId) => void
-  view: (draft: ViewState, view: 'board' | 'thread') => void
+  view: (draft: ViewState, view: SchedulerView) => void
 }
 
 /**
@@ -23,13 +26,18 @@ type ViewActions = {
  */
 export function createWorkSchedulerStore(): EngineStoreHandle<ViewState, ViewActions> {
   return defineStore({
-    init: () => ({ open: false, view: 'board' as 'board' | 'thread', selected: '', workspaceId: undefined as WorkspaceId | undefined }),
+    init: () => ({
+      open: false,
+      view: 'planning' as SchedulerView,
+      selected: '',
+      workspaceId: undefined as WorkspaceId | undefined,
+    }),
     actions: {
-      open: draft => { draft.open = true },
-      close: draft => { draft.open = false },
+      open: (draft) => { draft.open = true },
+      close: (draft) => { draft.open = false },
       select: (draft, id: string) => { draft.selected = id },
       workspace: (draft, id: WorkspaceId) => { draft.workspaceId = id },
-      view: (draft, view: 'board' | 'thread') => { draft.view = view },
+      view: (draft, view: SchedulerView) => { draft.view = view },
     },
   })
 }

@@ -10,9 +10,11 @@ import Storage from '@deepseek-ai/dsh-storage'
 import { Config as SqliteConfig, SqliteStorageBackend } from '@deepseek-ai/dsh-storage-sqlite'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { WorkSchedulerStoreService, workSchedulerDomainSpec } from '../src/index.ts'
-import type { WorkSchedulerDocument } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { SchedulerAttemptId, SchedulerCommandId, WorkSchedulerDocument } from '@deepseek-ai/dsh-host-apiproxy/api'
 
 type TaskSessionId = NonNullable<WorkSchedulerDocument['tasks'][string]['sessionId']>
+const attemptId = '00000000-0000-4000-8000-000000000001' as SchedulerAttemptId
+const commandId = 'execute-1' as SchedulerCommandId
 
 const workspaceA = 'ws-a' as unknown as import('@deepseek-ai/dsh-host-apiproxy/api').WorkspaceId
 const workspaceB = 'ws-b' as unknown as import('@deepseek-ai/dsh-host-apiproxy/api').WorkspaceId
@@ -84,6 +86,68 @@ describe('work scheduler store', () => {
     }
   })
 
+  it('rejects planning writes that rewrite execution records', async () => {
+    const { ctx, store } = await harness()
+    try {
+      const saved = await store.save(workspaceA, document(['检查构建']))
+      await store.update(workspaceA, (current) => {
+        current.attempts[attemptId] = {
+          id: attemptId,
+          taskId: '0',
+          commandId,
+          status: 'running',
+          description: '检查构建',
+          acceptance: [],
+          feedback: '',
+          sessionId: 'session-1' as TaskSessionId,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }
+      })
+      const current = (await store.load(workspaceA)).document
+      await expect(store.save(workspaceA, { ...saved, revision: current.revision, attempts: {} })).rejects.toThrow(
+        '执行和审查记录只能通过执行命令修改',
+      )
+      expect((await store.load(workspaceA)).document.attempts).not.toEqual({})
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('replaces one Workspace document with an empty board and leaves others untouched', async () => {
+    const { ctx, store } = await harness()
+    try {
+      const savedA = await store.save(workspaceA, document(['检查构建']))
+      const savedB = await store.save(workspaceB, document(['写文档']))
+      await store.update(workspaceA, (current) => {
+        current.attempts[attemptId] = {
+          id: attemptId,
+          taskId: '0',
+          commandId,
+          status: 'running',
+          description: '检查构建',
+          acceptance: [],
+          feedback: '',
+          sessionId: 'session-1' as TaskSessionId,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }
+      })
+      const current = (await store.load(workspaceA)).document
+      const cleared = await store.save(workspaceA, {
+        version: 3, revision: current.revision, attempts: {}, processes: [], tasks: {},
+        backlogIds: [], blockedIds: [], archiveIds: [],
+      })
+      expect(cleared.revision).toBe(current.revision + 1)
+      expect(cleared.tasks).toEqual({})
+      expect(cleared.attempts).toEqual({})
+      expect((await store.load(workspaceB)).document.tasks).toEqual(savedB.tasks)
+      expect(savedA.tasks['0']?.description).toBe('检查构建')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('closes the domain with the service fiber', async () => {
     const { ctx, facility } = await harness()
     expect(facility.get(workSchedulerDomainSpec.name)).toBeDefined()
@@ -114,7 +178,7 @@ describe('work scheduler store', () => {
       invalid.backlogIds.push('0')
       await expect(store.save(workspaceA, invalid)).rejects.toThrow('exactly one placement')
       expect((await store.save(workspaceA, document(['valid']))).revision).toBe(1)
-      await expect(store.update(workspaceA, current => { delete current.tasks['0'] })).rejects.toThrow('Unknown placed task')
+      await expect(store.update(workspaceA, (current) => { delete current.tasks['0'] })).rejects.toThrow('Unknown placed task')
       expect((await store.load(workspaceA)).document.tasks['0']?.description).toBe('valid')
     } finally { await ctx.fiber.dispose() }
   })

@@ -12,12 +12,15 @@ import type {
   WorkSchedulerDocument,
 } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-tool-todo/client'
-import { IconListPenOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconListPenOutline16, Modal, RiskConfirmation, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   addProcess,
   addTask,
+  createSchedulerState,
+  isClearedSchedulerDocument,
   moveTask,
   normalizeSchedulerState,
+  removeTask,
   renameProcess,
   setTaskStatus,
   wakeTask,
@@ -59,6 +62,14 @@ const currentAttempt = (document: WorkSchedulerDocument, id: string) =>
     .filter(attempt => attempt.taskId === id)
     .at(-1)
 const newCommandId = () => crypto.randomUUID() as SchedulerCommandId
+const executionColumn = (document: WorkSchedulerDocument, id: string) => {
+  const item = currentAttempt(document, id)
+  const task = document.tasks[id]
+  if (item?.status === 'approved' || task?.status === 'done') return 'approved'
+  if (item?.status === 'review') return 'review'
+  if (busy(item) || task?.status === 'running') return 'running'
+  return 'ready'
+}
 
 /**
  * Open the shared scheduler overlay.
@@ -118,7 +129,6 @@ export function SchedulerPanel({
   const backButton = useRef<HTMLButtonElement>(null)
   const confirmDropButton = useRef<HTMLButtonElement>(null)
   const [query, setQuery] = useState('')
-  const [thread, setThread] = useState('all')
   const [composer, setComposer] = useState(false)
   const [editing, setEditing] = useState('')
   const [boundSession, setBoundSession] = useState('')
@@ -127,6 +137,7 @@ export function SchedulerPanel({
   const [description, setDescription] = useState('')
   const [acceptance, setAcceptance] = useState('')
   const [newThread, setNewThread] = useState('')
+  const [addingColumn, setAddingColumn] = useState(false)
   const [taskThread, setTaskThread] = useState('backlog')
   const [feedback, setFeedback] = useState('')
   const [baseRef, setBaseRef] = useState('HEAD')
@@ -134,6 +145,9 @@ export function SchedulerPanel({
   const [fullscreen, setFullscreen] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [clearing, setClearing] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [deleting, setDeleting] = useState('')
   const [dragged, setDragged] = useState<{ taskId: string; workspaceId: WorkspaceId; revision: number }>()
   const [dropTarget, setDropTarget] = useState('')
   const [dropPosition, setDropPosition] = useState<{ id: string; after: boolean }>()
@@ -145,6 +159,7 @@ export function SchedulerPanel({
   }>()
   const [retry, setRetry] = useState<SchedulerCommand>()
   const titleInput = useRef<HTMLTextAreaElement>(null)
+  const columnInput = useRef<HTMLInputElement>(null)
   const windowRef = useRef<HTMLDivElement>(null)
   const selectedButton = useRef<HTMLButtonElement | null>(null)
   const task = document.tasks[view.selected]
@@ -153,6 +168,7 @@ export function SchedulerPanel({
   const session = attempt === undefined ? undefined : sessions.byId[attempt.sessionId]
   const todos = session?.projectionValues?.todos ?? []
   const ready = snapshot.status === 'ready' && snapshot.workspaceId === workspaceId && workspaceId !== undefined
+  const planning = view.view === 'planning'
   useEffect(() => {
     selectWorkspace(workspaceId)
   }, [selectWorkspace, workspaceId])
@@ -175,7 +191,11 @@ export function SchedulerPanel({
     setAcceptance('')
     setBoundSession('')
     setTaskThread('backlog')
-    setThread('all')
+    setClearing(false)
+    setAcknowledged(false)
+    setDeleting('')
+    setAddingColumn(false)
+    setNewThread('')
     actions.select('')
   }, [workspaceId, actions])
   useEffect(() => {
@@ -185,17 +205,34 @@ export function SchedulerPanel({
       setDragged(undefined)
       setDropTarget('')
       setDropPosition(undefined)
+      setClearing(false)
+      setAcknowledged(false)
+      setDeleting('')
     }
   }, [view.open])
   useEffect(() => {
-    if (composer) titleInput.current?.focus()
-  }, [composer])
+    if (composer || editing) titleInput.current?.focus()
+  }, [composer, editing])
+  useEffect(() => {
+    if (addingColumn) columnInput.current?.focus()
+  }, [addingColumn])
   useEffect(() => {
     if (!view.open) return
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (pendingDrop !== undefined) setPendingDrop(undefined)
+        if (clearing) {
+          setClearing(false)
+          setAcknowledged(false)
+        } else if (deleting) setDeleting('')
+        else if (pendingDrop !== undefined) setPendingDrop(undefined)
         else if (composer) setComposer(false)
+        else if (editing) {
+          setEditing('')
+          setDescription('')
+          setAcceptance('')
+          setBoundSession('')
+        }
+        else if (addingColumn) setAddingColumn(false)
         else if (view.selected) {
           actions.select('')
           selectedButton.current?.focus()
@@ -223,7 +260,7 @@ export function SchedulerPanel({
     return () => {
       globalThis.document.removeEventListener('keydown', keyboard)
     }
-  }, [actions, composer, pendingDrop, view.open, view.selected])
+  }, [actions, addingColumn, clearing, composer, deleting, editing, pendingDrop, view.open, view.selected])
   useEffect(() => {
     if (!view.open || composer) return
     if (pendingDrop !== undefined) confirmDropButton.current?.focus()
@@ -254,37 +291,41 @@ export function SchedulerPanel({
     ...document.blockedIds,
     ...document.archiveIds,
   ]
-  const matching = [...new Set(ids)].filter(
-    id =>
-      document.tasks[id]?.description.toLocaleLowerCase().includes(query.toLocaleLowerCase()) &&
-      (thread === 'all' || document.processes.find(process => process.id === thread)?.taskIds.includes(id)),
+  const matching = [...new Set(ids)].filter(id =>
+    (document.tasks[id]?.description ?? '').toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   )
-  const column = (id: string) => {
-    const item = currentAttempt(document, id)
-    return item?.status === 'approved'
-      ? 'approved'
-      : item?.status === 'review'
-        ? 'review'
-        : busy(item)
-          ? 'running'
-          : 'ready'
-  }
-  const lanes: [string, string][] =
-    view.view === 'board'
+  const lanes: { key: string; label: string; zone?: 'process' | 'backlog' | 'blocked' | 'archive'; processId?: string }[] =
+    planning
       ? [
-        ['ready', '待办'],
-        ['running', '执行中'],
-        ['review', '待审查'],
-        ['approved', '已通过'],
+        { key: 'backlog', label: '待办', zone: 'backlog' },
+        ...document.processes.map(process => ({
+          key: process.id,
+          label: process.name,
+          zone: 'process' as const,
+          processId: process.id,
+        })),
+        { key: 'blocked', label: '已暂停', zone: 'blocked' as const },
+        { key: 'archive', label: '已完成', zone: 'archive' as const },
       ]
       : [
-        ...document.processes.map((process): [string, string] => [process.id, process.name]),
-        ['backlog', '待分配 / 阻塞 / 归档'],
+        { key: 'ready', label: '待办' },
+        { key: 'running', label: '进行中' },
+        { key: 'review', label: '待审查' },
+        { key: 'approved', label: '已通过' },
       ]
-  const drop = (event: DragEvent, processId: string, index: number) => {
+  const laneIds = (lane: (typeof lanes)[number]) => {
+    if (lane.zone === 'backlog') return document.backlogIds
+    if (lane.zone === 'blocked') return document.blockedIds
+    if (lane.zone === 'archive') return document.archiveIds
+    if (lane.zone === 'process' && lane.processId !== undefined) {
+      return document.processes.find(process => process.id === lane.processId)?.taskIds ?? []
+    }
+    return matching.filter(id => executionColumn(document, id) === lane.key)
+  }
+  const dropPlanning = (event: DragEvent, lane: (typeof lanes)[number], index: number) => {
     event.preventDefault()
     event.stopPropagation()
-    if (!ready || view.view !== 'thread' || dragged === undefined) return
+    if (!ready || !planning || dragged === undefined || lane.zone === undefined) return
     if (dragged.workspaceId !== workspaceId || dragged.revision !== document.revision) {
       setNotice('拖动期间看板已更新，请重新拖动。')
       return
@@ -296,13 +337,15 @@ export function SchedulerPanel({
       currentAttempt(document, taskId) !== undefined
     )
       return
-    void saveDocument(
-      moveTask(
-        document,
-        taskId,
-        processId === 'backlog' ? { zone: 'backlog', index } : { zone: 'process', processId, index },
-      ),
-    ).catch(report)
+    const target =
+      lane.zone === 'process' && lane.processId !== undefined
+        ? { zone: 'process' as const, processId: lane.processId, index }
+        : { zone: lane.zone, index }
+    void saveDocument(moveTask(document, taskId, target))
+      .then(() => {
+        if (workspaceId === currentWorkspace.current && lane.zone === 'archive') setNotice('已勾选完成。')
+      })
+      .catch(report)
   }
   const boardGesture = (taskId: string, destination: BoardColumn, targetId?: string, after = false) => {
     if (!ready || pendingDrop !== undefined) return
@@ -314,9 +357,10 @@ export function SchedulerPanel({
     }
     if (intent.kind === 'none') return
     if (intent.kind === 'save') {
+      const done = intent.document.tasks[taskId]?.status === 'done'
       void saveDocument(intent.document)
         .then(() => {
-          if (workspaceId === currentWorkspace.current) setNotice('任务顺序已保存。')
+          if (workspaceId === currentWorkspace.current) setNotice(done ? '已勾选完成。' : '任务顺序已保存。')
         })
         .catch((cause: unknown) => {
           if (workspaceId === currentWorkspace.current) report(cause)
@@ -362,37 +406,53 @@ export function SchedulerPanel({
       setNotice('看板已更新，请重新选择操作。')
       return
     }
-    const intent = resolveBoardDrop(document, pendingDrop.taskId, pendingDrop.kind === 'execute' ? 'running' : 'ready')
-    if (intent.kind !== pendingDrop.kind) {
+    const item = currentAttempt(document, pendingDrop.taskId)
+    if (pendingDrop.kind === 'execute') {
+      if (item !== undefined && !['failed', 'stopped', 'interrupted'].includes(item.status)) {
+        setPendingDrop(undefined)
+        setNotice('任务状态已变化，请重新选择操作。')
+        return
+      }
+      setPendingDrop(undefined)
+      void runCommand({
+        kind: 'execute',
+        taskId: pendingDrop.taskId,
+        baseRef: 'HEAD',
+        expectedRevision: pendingDrop.revision,
+        commandId: newCommandId(),
+      })
+      return
+    }
+    if (item === undefined || !busy(item)) {
       setPendingDrop(undefined)
       setNotice('任务状态已变化，请重新选择操作。')
       return
     }
-    const item = currentAttempt(document, pendingDrop.taskId)
-    const operation: SchedulerCommand | undefined =
-      pendingDrop.kind === 'execute'
-        ? {
-          kind: 'execute',
-          taskId: pendingDrop.taskId,
-          baseRef: 'HEAD',
-          expectedRevision: pendingDrop.revision,
-          commandId: newCommandId(),
-        }
-        : item === undefined
-          ? undefined
-          : { kind: 'cancel', attemptId: item.id }
     setPendingDrop(undefined)
-    if (operation !== undefined) void runCommand(operation)
+    void runCommand({ kind: 'cancel', attemptId: item.id })
   }
   const move = (direction: number) => {
     if (task === undefined) return
     const process = document.processes.find(item => item.taskIds.includes(task.id))
-    const order = process?.taskIds ?? document.backlogIds
+    const order =
+      process?.taskIds ??
+      (document.blockedIds.includes(task.id)
+        ? document.blockedIds
+        : document.archiveIds.includes(task.id)
+          ? document.archiveIds
+          : document.backlogIds)
     const index = order.indexOf(task.id) + direction
     if (index < 0 || index >= order.length) return
+    const zone = process !== undefined
+      ? 'process'
+      : document.blockedIds.includes(task.id)
+        ? 'blocked'
+        : document.archiveIds.includes(task.id)
+          ? 'archive'
+          : 'backlog'
     void saveDocument(
       moveTask(document, task.id, {
-        zone: process === undefined ? 'backlog' : 'process',
+        zone,
         ...(process === undefined ? {} : { processId: process.id }),
         index,
       }),
@@ -404,13 +464,18 @@ export function SchedulerPanel({
       .split('\n')
       .map(item => item.trim())
       .filter(Boolean)
+    const lane = taskThread === 'backlog' || taskThread === 'blocked' || taskThread === 'archive'
+      ? {}
+      : { processId: taskThread }
     const next = editing
       ? structuredClone(document)
       : addTask(document, {
         description,
         acceptance: criteria,
         ...(boundSession ? { sessionId: boundSession as SessionId } : {}),
-        ...(taskThread === 'backlog' ? {} : { processId: taskThread }),
+        ...lane,
+        ...(taskThread === 'archive' ? { status: 'done' as const } : {}),
+        ...(taskThread === 'blocked' ? { status: 'async-blocked' as const } : {}),
       })
     if (editing) {
       const edited = next.tasks[editing]
@@ -429,6 +494,64 @@ export function SchedulerPanel({
     setAcceptance('')
     setBoundSession('')
   }
+  const startCreate = (lane = 'backlog') => {
+    setEditing('')
+    setDescription('')
+    setAcceptance('')
+    setBoundSession('')
+    setTaskThread(lane)
+    setComposer(true)
+  }
+  const startEdit = (id: string) => {
+    const item = document.tasks[id]
+    if (item === undefined) return
+    setComposer(false)
+    setEditing(id)
+    setDescription(item.description)
+    setAcceptance(item.acceptance.join('\n'))
+    setBoundSession(item.sessionId ?? '')
+    setTaskThread(
+      document.processes.find(process => process.taskIds.includes(id))?.id
+        ?? (document.blockedIds.includes(id) ? 'blocked' : document.archiveIds.includes(id) ? 'archive' : 'backlog'),
+    )
+    actions.select('')
+  }
+  const confirmDelete = () => {
+    if (!ready || !deleting) return
+    const selectedWorkspace = workspaceId
+    const id = deleting
+    setDeleting('')
+    void saveDocument(removeTask(document, id))
+      .then(() => {
+        if (selectedWorkspace !== currentWorkspace.current) return
+        setNotice('已删除任务。')
+        if (view.selected === id) actions.select('')
+      })
+      .catch(report)
+  }
+  const submitColumn = () => {
+    if (!newThread.trim()) return
+    void saveDocument(addProcess(document, newThread))
+      .then(() => {
+        if (workspaceId !== currentWorkspace.current) return
+        setNewThread('')
+        setAddingColumn(false)
+      })
+      .catch(report)
+  }
+  const clearBoard = () => {
+    if (!ready || !clearing || !acknowledged) return
+    const selectedWorkspace = workspaceId
+    setClearing(false)
+    setAcknowledged(false)
+    void saveDocument(createSchedulerState(document.revision))
+      .then(() => {
+        if (selectedWorkspace !== currentWorkspace.current) return
+        setNotice('已清空当前工作区看板。')
+        actions.select('')
+      })
+      .catch(report)
+  }
   const exportDocument = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' }))
     const anchor = globalThis.document.createElement('a')
@@ -442,6 +565,20 @@ export function SchedulerPanel({
     openSession(id)
     actions.close()
   }
+  const cardLabel = (id: string) => {
+    const item = document.tasks[id]
+    const current = currentAttempt(document, id)
+    const live = current === undefined ? undefined : sessions.byId[current.sessionId]
+    if (live?.pendingInteraction !== undefined) return '等待用户操作'
+    if (current === undefined) {
+      if (item?.status.includes('blocked')) return '已暂停'
+      if (item?.status === 'done') return '已完成'
+      if (item?.status === 'running') return '进行中'
+      return '待办'
+    }
+    return LABEL[current.status]
+  }
+  const emptyBoard = Object.keys(document.tasks).length === 0
   return (
     <div className={css.overlay}>
       <div
@@ -464,21 +601,37 @@ export function SchedulerPanel({
           <div className={css.headerActions}>
             <button
               className={css.primaryAction}
-              hidden={composer || task !== undefined}
+              hidden={composer || editing !== '' || task !== undefined}
               disabled={!ready}
               onClick={() => {
-                setEditing('')
-                setDescription('')
-                setAcceptance('')
-                setBoundSession('')
-                setComposer(true)
+                startCreate()
               }}
             >
               新建任务
             </button>
+            <button
+              disabled={!ready || isClearedSchedulerDocument(document)}
+              onClick={() => {
+                setAcknowledged(false)
+                setClearing(true)
+              }}
+            >
+              清空看板
+            </button>
             <details className={css.boardOptions}>
               <summary>看板选项</summary>
               <div>
+                <button disabled={!ready} onClick={() => { void refresh() }}>
+                  刷新
+                </button>
+                <button
+                  aria-pressed={!planning}
+                  onClick={() => {
+                    actions.view(planning ? 'execution' : 'planning')
+                  }}
+                >
+                  {planning ? '执行看板' : '规划看板'}
+                </button>
                 <button disabled={!ready} onClick={exportDocument}>
                   导出
                 </button>
@@ -524,7 +677,7 @@ export function SchedulerPanel({
             </button>
           </div>
         </header>
-        <div hidden={composer || task !== undefined} className={css.deliveryToolbar}>
+        <div hidden={task !== undefined} className={css.deliveryToolbar}>
           <select
             aria-label="看板工作区"
             value={workspaceId ?? ''}
@@ -538,22 +691,6 @@ export function SchedulerPanel({
               </option>
             ))}
           </select>
-          <button
-            aria-pressed={view.view === 'board'}
-            onClick={() => {
-              actions.view('board')
-            }}
-          >
-            状态看板
-          </button>
-          <button
-            aria-pressed={view.view === 'thread'}
-            onClick={() => {
-              actions.view('thread')
-            }}
-          >
-            线程视图
-          </button>
           <input
             aria-label="搜索任务"
             placeholder="搜索任务"
@@ -562,26 +699,14 @@ export function SchedulerPanel({
               setQuery(event.target.value)
             }}
           />
-          <select
-            aria-label="筛选线程"
-            value={thread}
-            onChange={(event) => {
-              setThread(event.target.value)
-            }}
-          >
-            <option value="all">全部线程</option>
-            {document.processes.map(process => (
-              <option key={process.id} value={process.id}>
-                {process.name}
-              </option>
-            ))}
-          </select>
           <button
+            hidden={!planning}
+            disabled={!ready}
             onClick={() => {
-              void refresh()
+              setAddingColumn(true)
             }}
           >
-            刷新
+            添加列
           </button>
           <span aria-live="polite">
             {snapshot.status === 'ready'
@@ -636,7 +761,7 @@ export function SchedulerPanel({
         )}
         {composer && (
           <form
-            className={css.deliveryComposer}
+            className={css.inlineComposer}
             onSubmit={(event) => {
               event.preventDefault()
               void submitTask().catch(report)
@@ -648,6 +773,7 @@ export function SchedulerPanel({
               <textarea
                 ref={titleInput}
                 required
+                placeholder="要做什么"
                 value={description}
                 onChange={(event) => {
                   setDescription(event.target.value)
@@ -655,14 +781,33 @@ export function SchedulerPanel({
               />
             </label>
             <label>
-              验收条件（每行一项）
+              验收条件（可选，每行一项）
               <textarea
-                required
+                placeholder="可选，每行一项"
                 value={acceptance}
                 onChange={(event) => {
                   setAcceptance(event.target.value)
                 }}
               />
+            </label>
+            <label>
+              放到
+              <select
+                disabled={!!editing}
+                value={taskThread}
+                onChange={(event) => {
+                  setTaskThread(event.target.value)
+                }}
+              >
+                <option value="backlog">待办</option>
+                {document.processes.map(process => (
+                  <option key={process.id} value={process.id}>
+                    {process.name}
+                  </option>
+                ))}
+                <option value="blocked">已暂停</option>
+                <option value="archive">已完成</option>
+              </select>
             </label>
             <details>
               <summary>更多选项</summary>
@@ -682,23 +827,6 @@ export function SchedulerPanel({
                   ))}
                 </select>
               </label>
-              <label>
-                工作线程
-                <select
-                  disabled={!!editing}
-                  value={taskThread}
-                  onChange={(event) => {
-                    setTaskThread(event.target.value)
-                  }}
-                >
-                  <option value="backlog">待分配</option>
-                  {document.processes.map(process => (
-                    <option key={process.id} value={process.id}>
-                      {process.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </details>
             <div className={css.editorActions}>
               <button
@@ -709,568 +837,755 @@ export function SchedulerPanel({
               >
                 取消
               </button>
-              <button className={css.primaryAction} disabled={!ready || !description.trim() || !acceptance.trim()}>
-                保存待办
+              <button className={css.primaryAction} disabled={!ready || !description.trim()}>
+                {editing ? '保存' : '添加任务'}
               </button>
             </div>
           </form>
         )}
-        <main hidden={composer} className={css.deliveryContent} data-detail={task !== undefined || undefined}>
+        <main className={css.deliveryContent} data-detail={task !== undefined || undefined}>
           <div
             hidden={task !== undefined}
             className={css.deliveryBoard}
-            aria-label={view.view === 'board' ? '状态看板' : '线程看板'}
+            aria-label={planning ? '规划看板' : '执行看板'}
           >
-            {lanes.map(([key, label]) => {
-              const laneIds =
-                key === 'backlog'
-                  ? document.backlogIds
-                  : (document.processes.find(process => process.id === key)?.taskIds ?? [])
+            {lanes.map((lane) => {
               const rows = matching.filter(id =>
-                view.view === 'board'
-                  ? column(id) === key
-                  : key === 'backlog'
-                    ? !document.processes.some(process => process.taskIds.includes(id))
-                    : laneIds.includes(id),
+                planning
+                  ? laneIds(lane).includes(id)
+                  : executionColumn(document, id) === lane.key,
               )
+              const order = planning ? laneIds(lane) : rows
               return (
                 <section
                   className={css.deliveryLane}
-                  data-drop-target={dropTarget === key || undefined}
-                  aria-label={`${label}列`}
-                  key={key}
+                  data-drop-target={dropTarget === lane.key || undefined}
+                  aria-label={`${lane.label}列`}
+                  key={lane.key}
                   onDragOver={(event) => {
                     if (ready && dragged !== undefined && pendingDrop === undefined) {
                       event.preventDefault()
-                      setDropTarget(key)
+                      setDropTarget(lane.key)
                     }
                   }}
                   onDrop={(event) => {
-                    if (view.view === 'board') boardDrop(event, key as BoardColumn)
-                    else {
+                    if (planning) {
                       setDragged(undefined)
                       setDropTarget('')
                       setDropPosition(undefined)
-                      drop(event, key, key === 'backlog' ? document.backlogIds.length : laneIds.length)
-                    }
+                      dropPlanning(event, lane, order.length)
+                    } else boardDrop(event, lane.key as BoardColumn)
                   }}
                 >
                   <h2>
-                    {label} <span>{rows.length}</span>
+                    {lane.label} <span>{rows.length}</span>
                   </h2>
-                  {view.view === 'thread' && key !== 'backlog' && (
+                  {planning && lane.zone === 'process' && (
                     <input
-                      aria-label={`线程名称 ${label}`}
+                      aria-label={`列名称 ${lane.label}`}
                       disabled={!ready}
-                      defaultValue={label}
-                      key={label}
+                      defaultValue={lane.label}
+                      key={lane.label}
                       onBlur={(event) => {
-                        if (event.target.value.trim() && event.target.value !== label)
-                          void saveDocument(renameProcess(document, key, event.target.value)).catch(report)
+                        if (event.target.value.trim() && event.target.value !== lane.label)
+                          void saveDocument(renameProcess(document, lane.key, event.target.value)).catch(report)
                       }}
                     />
                   )}
-                  {rows.length === 0 && <p className={css.muted}>暂无任务</p>}
+                  {rows.length === 0 && (
+                    <p className={css.muted}>
+                      {emptyBoard && lane.key === 'backlog' ? '点「新建任务」或列内「添加」开始规划。' : '暂无任务'}
+                    </p>
+                  )}
                   {rows.map((id) => {
                     const item = document.tasks[id],
-                      current = currentAttempt(document, id),
-                      live = current === undefined ? undefined : sessions.byId[current.sessionId]
-                    if (item === undefined) throw new Error('任务不存在，请刷新看板。')
+                      current = currentAttempt(document, id)
+                    if (item === undefined) return null
+                    const personal = planning && current === undefined
                     return (
-                      <button
-                        className={css.deliveryCard}
-                        draggable={
-                          ready && pendingDrop === undefined && (view.view === 'board' || current === undefined)
-                        }
-                        data-dragging={dragged?.taskId === id || undefined}
+                      <div
+                        className={css.cardShell}
                         data-drop-position={
                           dropPosition?.id === id ? (dropPosition.after ? 'after' : 'before') : undefined
                         }
+                        key={id}
                         onDragOver={(event) => {
-                          if (view.view !== 'board' || !ready || dragged === undefined || pendingDrop !== undefined)
-                            return
+                          if (!ready || dragged === undefined || pendingDrop !== undefined) return
                           event.preventDefault()
                           event.stopPropagation()
-                          setDropTarget(key)
+                          setDropTarget(lane.key)
                           const bounds = event.currentTarget.getBoundingClientRect()
                           setDropPosition({ id, after: event.clientY > bounds.top + bounds.height / 2 })
                         }}
-                        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
-                        onDragEnd={() => {
-                          setDragged(undefined)
-                          setDropTarget('')
-                          setDropPosition(undefined)
-                        }}
-                        onKeyDown={(event) => {
-                          if (!event.altKey || view.view !== 'board' || !ready) return
-                          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
-                          event.preventDefault()
-                          selectedButton.current = event.currentTarget
-                          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-                            const index =
-                              lanes.findIndex(([lane]) => lane === key) + (event.key === 'ArrowLeft' ? -1 : 1)
-                            const destination = lanes[index]?.[0]
-                            if (destination !== undefined) boardGesture(id, destination as BoardColumn)
-                          } else {
-                            const index = rows.indexOf(id) + (event.key === 'ArrowUp' ? -1 : 1)
-                            const target = rows[index]
-                            if (target !== undefined)
-                              boardGesture(id, key as BoardColumn, target, event.key === 'ArrowDown')
-                          }
-                        }}
-                        onDragStart={(event) => {
-                          if (workspaceId === undefined || !ready) {
-                            event.preventDefault()
-                            return
-                          }
-                          selectedButton.current = event.currentTarget
-                          setDragged({ taskId: id, workspaceId, revision: document.revision })
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('application/x-dsh-task', id)
-                          event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
-                        }}
                         onDrop={(event) => {
-                          if (view.view === 'board') boardDrop(event, key as BoardColumn, id)
-                          else
-                            drop(event, key, key === 'backlog' ? document.backlogIds.indexOf(id) : laneIds.indexOf(id))
-                        }}
-                        aria-pressed={view.selected === id}
-                        key={id}
-                        onClick={(event) => {
-                          if (dragged !== undefined) return
-                          selectedButton.current = event.currentTarget
-                          actions.select(id)
+                          if (planning) {
+                            dropPlanning(
+                              event,
+                              lane,
+                              lane.zone === undefined ? rows.indexOf(id) : order.indexOf(id),
+                            )
+                          } else boardDrop(event, lane.key as BoardColumn, id)
                         }}
                       >
-                        <small>
-                          {document.processes.find(process => process.taskIds.includes(id))?.name ?? '待分配'}
-                        </small>
-                        <strong>{item.description}</strong>
-                        <span>
-                          {live?.pendingInteraction !== undefined
-                            ? '等待用户操作'
-                            : current === undefined
-                              ? item.status.includes('blocked')
-                                ? '已阻塞'
-                                : item.status === 'done'
-                                  ? '规划已完成'
-                                  : '待办'
-                              : LABEL[current.status]}
-                        </span>
-                        <small>{item.acceptance.length} 项验收条件</small>
-                      </button>
+                        {editing === id && !composer ? (
+                          <form
+                            className={css.inPlaceEditor}
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              void submitTask().catch(report)
+                            }}
+                          >
+                            <label>
+                              任务描述
+                              <textarea
+                                ref={titleInput}
+                                required
+                                value={description}
+                                onChange={(event) => {
+                                  setDescription(event.target.value)
+                                }}
+                              />
+                            </label>
+                            <label>
+                              验收条件（可选，每行一项）
+                              <textarea
+                                value={acceptance}
+                                onChange={(event) => {
+                                  setAcceptance(event.target.value)
+                                }}
+                              />
+                            </label>
+                            <details>
+                              <summary>更多选项</summary>
+                              <label>
+                                关联会话
+                                <select
+                                  value={boundSession}
+                                  onChange={(event) => {
+                                    setBoundSession(event.target.value)
+                                  }}
+                                >
+                                  <option value="">不关联</option>
+                                  {workspace?.sessionIds.map(session => (
+                                    <option key={session} value={session}>
+                                      {sessions.byId[session]?.displayTitle ?? session}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </details>
+                            <div className={css.editorActions}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing('')
+                                  setDescription('')
+                                  setAcceptance('')
+                                  setBoundSession('')
+                                }}
+                              >
+                                取消
+                              </button>
+                              <button className={css.primaryAction} disabled={!ready || !description.trim()}>
+                                保存
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              className={css.deliveryCard}
+                              draggable={ready && pendingDrop === undefined && editing !== id
+                                && (!planning || current === undefined)}
+                              data-dragging={dragged?.taskId === id || undefined}
+                              aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                              onDragEnd={() => {
+                                setDragged(undefined)
+                                setDropTarget('')
+                                setDropPosition(undefined)
+                              }}
+                              onKeyDown={(event) => {
+                                if (!event.altKey || !ready) return
+                                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                                event.preventDefault()
+                                selectedButton.current = event.currentTarget
+                                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                                  const index =
+                                    lanes.findIndex(item => item.key === lane.key)
+                                    + (event.key === 'ArrowLeft' ? -1 : 1)
+                                  const destination = lanes[index]
+                                  if (destination === undefined) return
+                                  if (planning && destination.zone !== undefined && current === undefined) {
+                                    const idsAt = laneIds(destination)
+                                    void saveDocument(
+                                      moveTask(
+                                        document,
+                                        id,
+                                        destination.zone === 'process' && destination.processId !== undefined
+                                          ? { zone: 'process', processId: destination.processId, index: idsAt.length }
+                                          : { zone: destination.zone, index: idsAt.length },
+                                      ),
+                                    )
+                                      .then(() => {
+                                        if (
+                                          workspaceId === currentWorkspace.current
+                                          && destination.zone === 'archive'
+                                        ) {
+                                          setNotice('已勾选完成。')
+                                        }
+                                      })
+                                      .catch(report)
+                                  } else if (!planning) boardGesture(id, destination.key as BoardColumn)
+                                } else {
+                                  const index = rows.indexOf(id) + (event.key === 'ArrowUp' ? -1 : 1)
+                                  const target = rows[index]
+                                  if (target === undefined) return
+                                  if (planning && lane.zone !== undefined && current === undefined) {
+                                    void saveDocument(
+                                      moveTask(
+                                        document,
+                                        id,
+                                        lane.zone === 'process' && lane.processId !== undefined
+                                          ? { zone: 'process', processId: lane.processId, index }
+                                          : { zone: lane.zone, index },
+                                      ),
+                                    ).catch(report)
+                                  } else if (!planning) {
+                                    boardGesture(id, lane.key as BoardColumn, target, event.key === 'ArrowDown')
+                                  }
+                                }
+                              }}
+                              onDragStart={(event) => {
+                                if (workspaceId === undefined || !ready) {
+                                  event.preventDefault()
+                                  return
+                                }
+                                selectedButton.current = event.currentTarget
+                                setDragged({ taskId: id, workspaceId, revision: document.revision })
+                                event.dataTransfer.effectAllowed = 'move'
+                                event.dataTransfer.setData('application/x-dsh-task', id)
+                                event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
+                              }}
+                              aria-pressed={view.selected === id}
+                              onClick={(event) => {
+                                if (dragged !== undefined) return
+                                selectedButton.current = event.currentTarget
+                                actions.select(id)
+                              }}
+                            >
+                              <strong>{item.description}</strong>
+                              <span>{cardLabel(id)}</span>
+                              {item.acceptance.length > 0 && <small>{item.acceptance.length} 项验收条件</small>}
+                            </button>
+                            {personal && (
+                              <div className={css.cardActions}>
+                                <button
+                                  type="button"
+                                  disabled={!ready}
+                                  onClick={() => {
+                                    startEdit(id)
+                                  }}
+                                >
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!ready}
+                                  onClick={() => {
+                                    setDeleting(id)
+                                  }}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )
                   })}
+                  {planning && (
+                    <button
+                      type="button"
+                      className={css.laneAdd}
+                      disabled={!ready}
+                      aria-label={`在${lane.label}列添加`}
+                      onClick={() => {
+                        startCreate(lane.zone === 'process' ? lane.key : lane.zone ?? 'backlog')
+                      }}
+                    >
+                      添加
+                    </button>
+                  )}
                 </section>
               )
             })}
+            {planning && addingColumn && (
+              <form
+                className={css.deliveryLane}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  submitColumn()
+                }}
+              >
+                <h2>新列</h2>
+                <input
+                  ref={columnInput}
+                  aria-label="新列名称"
+                  value={newThread}
+                  onChange={(event) => {
+                    setNewThread(event.target.value)
+                  }}
+                />
+                <button disabled={!ready || !newThread.trim()}>添加</button>
+              </form>
+            )}
           </div>
-          <aside
-            className={css.deliveryDetails}
-            data-planning={task === undefined || undefined}
-            aria-label={task === undefined ? '线程管理' : '任务详情'}
-          >
-            {task === undefined ? (
-              <details>
-                <summary>管理工作线程</summary>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void saveDocument(addProcess(document, newThread))
-                      .then(() => {
-                        setNewThread('')
-                      })
-                      .catch(report)
-                  }}
-                >
-                  <label>
-                    新线程名称
-                    <input
-                      value={newThread}
-                      onChange={(event) => {
-                        setNewThread(event.target.value)
-                      }}
-                    />
-                  </label>
-                  <button disabled={!ready || !newThread.trim()}>添加线程</button>
-                </form>
-              </details>
-            ) : (
-              <>
-                <button
-                  ref={backButton}
-                  onClick={() => {
-                    actions.select('')
-                  }}
-                >
-                  返回看板
-                </button>
-                <h2>{task.description}</h2>
-                <p>{attempt === undefined ? '尚未执行' : LABEL[attempt.status]}</p>
-                <nav className={css.deliveryToolbar}>
-                  {[
-                    ['overview', '概览'],
-                    ['log', '执行记录'],
-                    ['diff', '文件差异'],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      aria-pressed={tab === value}
-                      onClick={() => {
-                        if (value !== undefined) setTab(value)
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </nav>
-                {tab === 'overview' && (
-                  <>
-                    <h3>验收条件</h3>
+          {task !== undefined && (
+            <aside className={css.deliveryDetails} aria-label="任务详情">
+              <button
+                ref={backButton}
+                onClick={() => {
+                  actions.select('')
+                }}
+              >
+                返回看板
+              </button>
+              <h2>{task.description}</h2>
+              <p>{attempt === undefined ? (task.status === 'done' ? '已完成' : '尚未执行') : LABEL[attempt.status]}</p>
+              <nav className={css.deliveryToolbar}>
+                {[
+                  ['overview', '概览'],
+                  ['log', '执行记录'],
+                  ['diff', '文件差异'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    aria-pressed={tab === value}
+                    onClick={() => {
+                      if (value !== undefined) setTab(value)
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              {tab === 'overview' && (
+                <>
+                  <h3>验收条件</h3>
+                  {task.acceptance.length === 0 ? <p className={css.muted}>未填写</p> : (
                     <ul>
                       {task.acceptance.map((item, index) => (
                         <li key={index}>{item}</li>
                       ))}
                     </ul>
-                    {todos.length > 0 && (
-                      <>
-                        <progress
-                          aria-label="工作进度"
-                          value={todos.filter(item => item.status === 'completed').length}
-                          max={todos.length}
-                        />
-                        <p>{todos.find(item => item.status === 'in_progress')?.content}</p>
-                      </>
-                    )}
-                    {session?.pendingInteraction !== undefined && (
-                      <p>等待审批、计划确认或问题答复，请打开执行会话处理。</p>
-                    )}
-                    {attempt?.error && <p role="alert">{attempt.error}</p>}
-                    {attempt?.evidence && (
-                      <>
-                        <h3>执行摘要</h3>
-                        <p className={css.deliveryText}>{attempt.evidence.summary}</p>
-                        <p>请核对实际工具记录；未运行的检查不能视为通过。</p>
-                      </>
-                    )}
-                  </>
-                )}
-                {tab === 'log' && (
-                  <>
-                    {attempt === undefined ? (
-                      <p>尚无执行记录</p>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            open(attempt.sessionId)
-                          }}
-                        >
-                          打开完整执行会话 / 处理审批
-                        </button>
-                        {attempt.evidence?.tools.map((tool, index) => (
-                          <details key={index}>
-                            <summary>
-                              {tool.name} · {tool.failed ? '失败或未完成' : '已返回结果'}
-                            </summary>
-                            <pre>{tool.arguments}</pre>
-                            <pre>{tool.result}</pre>
-                          </details>
-                        ))}
-                      </>
-                    )}
-                  </>
-                )}
-                {tab === 'diff' &&
-                  (evidence === undefined ? (
-                    <p>正常结束后固定本轮文件差异。</p>
+                  )}
+                  {todos.length > 0 && (
+                    <>
+                      <progress
+                        aria-label="工作进度"
+                        value={todos.filter(item => item.status === 'completed').length}
+                        max={todos.length}
+                      />
+                      <p>{todos.find(item => item.status === 'in_progress')?.content}</p>
+                    </>
+                  )}
+                  {session?.pendingInteraction !== undefined && (
+                    <p>等待审批、计划确认或问题答复，请打开执行会话处理。</p>
+                  )}
+                  {attempt?.error && <p role="alert">{attempt.error}</p>}
+                  {attempt?.evidence && (
+                    <>
+                      <h3>执行摘要</h3>
+                      <p className={css.deliveryText}>{attempt.evidence.summary}</p>
+                      <p>请核对实际工具记录；未运行的检查不能视为通过。</p>
+                    </>
+                  )}
+                </>
+              )}
+              {tab === 'log' && (
+                <>
+                  {attempt === undefined ? (
+                    <p>尚无执行记录</p>
                   ) : (
                     <>
-                      {attempt?.status === 'review' && (
-                        <button
-                          disabled={!ready}
-                          onClick={() => {
-                            void runCommand({
-                              kind: 'refresh-review',
-                              attemptId: attempt.id,
-                              expectedRevision: document.revision,
-                              evidenceHash: evidence.hash,
-                              feedback: '',
-                              commandId: newCommandId(),
-                            })
-                          }}
-                        >
-                          重新固定文件证据
-                        </button>
-                      )}
-                      <p>
-                        证据 {evidence.hash.slice(0, 12)} · 日志 {evidence.logSeq}
-                      </p>
-                      {evidence.truncated && <p>显示已截断，请核对完整产物。</p>}
-                      <pre className={css.deliveryDiff}>{evidence.diff || '此处无可显示差异，请核对完整产物。'}</pre>
+                      <button
+                        onClick={() => {
+                          open(attempt.sessionId)
+                        }}
+                      >
+                        打开完整执行会话 / 处理审批
+                      </button>
+                      {attempt.evidence?.tools.map((tool, index) => (
+                        <details key={index}>
+                          <summary>
+                            {tool.name} · {tool.failed ? '失败或未完成' : '已返回结果'}
+                          </summary>
+                          <pre>{tool.arguments}</pre>
+                          <pre>{tool.result}</pre>
+                        </details>
+                      ))}
                     </>
-                  ))}
-                {attempt?.worktree && <p className={css.deliveryText}>产物目录：{attempt.worktree}</p>}
-                {attempt !== undefined && (
+                  )}
+                </>
+              )}
+              {tab === 'diff' &&
+                (evidence === undefined ? (
+                  <p>正常结束后固定本轮文件差异。</p>
+                ) : (
+                  <>
+                    {attempt?.status === 'review' && (
+                      <button
+                        disabled={!ready}
+                        onClick={() => {
+                          void runCommand({
+                            kind: 'refresh-review',
+                            attemptId: attempt.id,
+                            expectedRevision: document.revision,
+                            evidenceHash: evidence.hash,
+                            feedback: '',
+                            commandId: newCommandId(),
+                          })
+                        }}
+                      >
+                        重新固定文件证据
+                      </button>
+                    )}
+                    <p>
+                      证据 {evidence.hash.slice(0, 12)} · 日志 {evidence.logSeq}
+                    </p>
+                    {evidence.truncated && <p>显示已截断，请核对完整产物。</p>}
+                    <pre className={css.deliveryDiff}>{evidence.diff || '此处无可显示差异，请核对完整产物。'}</pre>
+                  </>
+                ))}
+              {attempt?.worktree && <p className={css.deliveryText}>产物目录：{attempt.worktree}</p>}
+              {attempt !== undefined && (
+                <button
+                  onClick={() => {
+                    open(attempt.sessionId)
+                  }}
+                >
+                  打开执行会话
+                </button>
+              )}
+              {(!attempt || ['failed', 'stopped', 'interrupted'].includes(attempt.status)) && (
+                <>
+                  <p className={css.deliveryNotice}>
+                    执行使用所选 Git 版本，不带入原工作区未提交改动。将在隔离 worktree 执行并创建仅本地的内部快照。
+                  </p>
+                  <details className={css.advancedOptions}>
+                    <summary>高级执行设置</summary>
+                    <label>
+                      Git 起始版本
+                      <input
+                        value={baseRef}
+                        onChange={(event) => {
+                          setBaseRef(event.target.value)
+                        }}
+                      />
+                    </label>
+                  </details>
                   <button
+                    className={css.primaryAction}
+                    disabled={!ready || !baseRef.trim()}
                     onClick={() => {
-                      open(attempt.sessionId)
+                      if (workspaceId === undefined) return
+                      setPendingDrop({
+                        taskId: task.id,
+                        workspaceId,
+                        revision: document.revision,
+                        kind: 'execute',
+                      })
                     }}
                   >
-                    打开执行会话
+                    {attempt ? '重试任务' : '执行任务'}
                   </button>
-                )}
-                {(!attempt || ['failed', 'stopped', 'interrupted'].includes(attempt.status)) && (
-                  <>
-                    <p className={css.deliveryNotice}>
-                      执行使用所选 Git 版本，不带入原工作区未提交改动。将在隔离 worktree 执行并创建仅本地的内部快照。
-                    </p>
-                    <details className={css.advancedOptions}>
-                      <summary>高级执行设置</summary>
-                      <label>
-                        Git 起始版本
-                        <input
-                          value={baseRef}
-                          onChange={(event) => {
-                            setBaseRef(event.target.value)
-                          }}
-                        />
-                      </label>
-                    </details>
+                </>
+              )}
+              {attempt !== undefined && busy(attempt) && (
+                <button
+                  disabled={!ready || attempt.status === 'stopping'}
+                  onClick={() => {
+                    void runCommand({ kind: 'cancel', attemptId: attempt.id })
+                  }}
+                >
+                  {attempt.status === 'queued' ? '取消排队' : '停止执行'}
+                </button>
+              )}
+              {attempt?.status === 'review' && evidence && (
+                <>
+                  <p className={css.deliveryNotice}>通过审查只确认本轮产物，不自动合入用户分支、推送或合并。</p>
+                  <label>
+                    返工意见 / 接受失败检查的原因
+                    <textarea
+                      value={feedback}
+                      onChange={(event) => {
+                        setFeedback(event.target.value)
+                      }}
+                    />
+                  </label>
+                  <div className={css.deliveryToolbar}>
                     <button
                       className={css.primaryAction}
-                      disabled={!ready || !baseRef.trim() || task.acceptance.length === 0}
+                      disabled={!ready}
                       onClick={() => {
                         void runCommand({
-                          kind: 'execute',
-                          taskId: task.id,
-                          baseRef: baseRef.trim(),
+                          kind: 'approve',
+                          attemptId: attempt.id,
                           expectedRevision: document.revision,
+                          evidenceHash: evidence.hash,
+                          feedback,
                           commandId: newCommandId(),
                         })
                       }}
                     >
-                      {attempt ? '重试任务' : '执行任务'}
+                      通过审查
                     </button>
-                  </>
-                )}
-                {attempt !== undefined && busy(attempt) && (
-                  <button
-                    disabled={!ready || attempt.status === 'stopping'}
-                    onClick={() => {
-                      void runCommand({ kind: 'cancel', attemptId: attempt.id })
-                    }}
-                  >
-                    {attempt.status === 'queued' ? '取消排队' : '停止执行'}
-                  </button>
-                )}
-                {attempt?.status === 'review' && evidence && (
-                  <>
-                    <p className={css.deliveryNotice}>通过审查只确认本轮产物，不自动合入用户分支、推送或合并。</p>
-                    <label>
-                      返工意见 / 接受失败检查的原因
-                      <textarea
-                        value={feedback}
-                        onChange={(event) => {
-                          setFeedback(event.target.value)
-                        }}
-                      />
-                    </label>
-                    <div className={css.deliveryToolbar}>
-                      <button
-                        className={css.primaryAction}
-                        disabled={!ready}
-                        onClick={() => {
-                          void runCommand({
-                            kind: 'approve',
-                            attemptId: attempt.id,
-                            expectedRevision: document.revision,
-                            evidenceHash: evidence.hash,
-                            feedback,
-                            commandId: newCommandId(),
+                    <button
+                      disabled={!ready || !feedback.trim()}
+                      onClick={() => {
+                        void runCommand({
+                          kind: 'rework',
+                          attemptId: attempt.id,
+                          expectedRevision: document.revision,
+                          evidenceHash: evidence.hash,
+                          feedback,
+                          commandId: newCommandId(),
+                        })
+                      }}
+                    >
+                      提交返工
+                    </button>
+                  </div>
+                </>
+              )}
+              {attempt !== undefined && ['queued', 'review'].includes(attempt.status) && (
+                <button
+                  disabled={!ready}
+                  onClick={() => {
+                    void runCommand({
+                      kind: task.status === 'async-blocked' ? 'resume' : 'yield',
+                      attemptId: attempt.id,
+                      expectedRevision: document.revision,
+                    })
+                  }}
+                >
+                  {task.status === 'async-blocked' ? '恢复线程占位' : '异步让出线程'}
+                </button>
+              )}
+              {attempt?.status === 'approved' && (
+                <p className={css.deliveryNotice}>审查已通过，产物保留在 worktree，未合入用户分支。</p>
+              )}
+              {task.sessionId && (
+                <button
+                  onClick={() => {
+                    if (task.sessionId !== undefined) open(task.sessionId)
+                  }}
+                >
+                  打开关联会话
+                </button>
+              )}
+              {attempt === undefined && (
+                <details className={css.advancedOptions} open>
+                  <summary>任务安排</summary>
+                  <div className={css.deliveryToolbar}>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        setEditing(task.id)
+                        setDescription(task.description)
+                        setAcceptance(task.acceptance.join('\n'))
+                        setBoundSession(task.sessionId ?? '')
+                        setTaskThread(
+                          document.processes.find(process => process.taskIds.includes(task.id))?.id
+                            ?? (document.blockedIds.includes(task.id)
+                              ? 'blocked'
+                              : document.archiveIds.includes(task.id) ? 'archive' : 'backlog'),
+                        )
+                        setComposer(true)
+                      }}
+                    >
+                      编辑任务
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        const selectedWorkspace = workspaceId
+                        if (selectedWorkspace === undefined) return
+                        void createSession(selectedWorkspace, task.description)
+                          .then((id) => {
+                            if (selectedWorkspace !== currentWorkspace.current) return
+                            const next = structuredClone(document)
+                            next.tasks[task.id] = { ...task, sessionId: id }
+                            return saveDocument(next)
                           })
-                        }}
-                      >
-                        通过审查
-                      </button>
-                      <button
-                        disabled={!ready || !feedback.trim()}
-                        onClick={() => {
-                          void runCommand({
-                            kind: 'rework',
-                            attemptId: attempt.id,
-                            expectedRevision: document.revision,
-                            evidenceHash: evidence.hash,
-                            feedback,
-                            commandId: newCommandId(),
+                          .catch(report)
+                      }}
+                    >
+                      创建草稿会话
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        move(-1)
+                      }}
+                    >
+                      上移
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        move(1)
+                      }}
+                    >
+                      下移
+                    </button>
+                    <button
+                      disabled={!ready || task.status === 'done'}
+                      onClick={() => {
+                        void saveDocument(moveTask(document, task.id, { zone: 'archive', index: document.archiveIds.length }))
+                          .then(() => {
+                            if (workspaceId === currentWorkspace.current) setNotice('已勾选完成。')
                           })
-                        }}
-                      >
-                        提交返工
-                      </button>
-                    </div>
-                  </>
-                )}
-                {attempt !== undefined && ['queued', 'review'].includes(attempt.status) && (
-                  <button
-                    disabled={!ready}
-                    onClick={() => {
-                      void runCommand({
-                        kind: task.status === 'async-blocked' ? 'resume' : 'yield',
-                        attemptId: attempt.id,
-                        expectedRevision: document.revision,
-                      })
-                    }}
-                  >
-                    {task.status === 'async-blocked' ? '恢复线程占位' : '异步让出线程'}
-                  </button>
-                )}
-                {attempt?.status === 'approved' && (
-                  <p className={css.deliveryNotice}>审查已通过，产物保留在 worktree，未合入用户分支。</p>
-                )}
-                {task.sessionId && (
-                  <button
-                    onClick={() => {
-                      if (task.sessionId !== undefined) open(task.sessionId)
-                    }}
-                  >
-                    打开关联会话
-                  </button>
-                )}
-                {attempt === undefined && (
-                  <details className={css.advancedOptions}>
-                    <summary>编辑与任务安排</summary>
-                    <div className={css.deliveryToolbar}>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          setEditing(task.id)
-                          setDescription(task.description)
-                          setAcceptance(task.acceptance.join('\n'))
-                          setBoundSession(task.sessionId ?? '')
-                          setTaskThread(
-                            document.processes.find(process => process.taskIds.includes(task.id))?.id ?? 'backlog',
-                          )
-                          setComposer(true)
-                        }}
-                      >
-                        编辑任务
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          const selectedWorkspace = workspaceId
-                          if (selectedWorkspace === undefined) return
-                          void createSession(selectedWorkspace, task.description)
-                            .then((id) => {
-                              if (selectedWorkspace !== currentWorkspace.current) return
-                              const next = structuredClone(document)
-                              next.tasks[task.id] = { ...task, sessionId: id }
-                              return saveDocument(next)
-                            })
-                            .catch(report)
-                        }}
-                      >
-                        创建草稿会话
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          move(-1)
-                        }}
-                      >
-                        上移
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          move(1)
-                        }}
-                      >
-                        下移
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          void saveDocument(setTaskStatus(document, task.id, 'sync-blocked')).catch(report)
-                        }}
-                      >
-                        暂停并等待
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          void saveDocument(setTaskStatus(document, task.id, 'async-blocked')).catch(report)
-                        }}
-                      >
-                        暂停并让后续任务先行
-                      </button>
-                      <button
-                        disabled={!ready}
-                        onClick={() => {
-                          void saveDocument(
-                            task.status === 'async-blocked'
-                              ? wakeTask(document, task.id)
-                              : setTaskStatus(document, task.id, 'ready'),
-                          ).catch(report)
-                        }}
-                      >
-                        恢复任务
-                      </button>
-                    </div>
-                    <label>
-                      分配线程
-                      <select
-                        disabled={!ready}
-                        value={document.processes.find(process => process.taskIds.includes(task.id))?.id ?? 'backlog'}
-                        onChange={(event) => {
-                          const process = document.processes.find(item => item.id === event.target.value)
-                          void saveDocument(
-                            moveTask(
-                              document,
-                              task.id,
-                              process === undefined
-                                ? { zone: 'backlog', index: document.backlogIds.length }
-                                : { zone: 'process', processId: process.id, index: process.taskIds.length },
-                            ),
-                          ).catch(report)
-                        }}
-                      >
-                        <option value="backlog">待分配</option>
-                        {document.processes.map(process => (
-                          <option key={process.id} value={process.id}>
-                            {process.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </details>
-                )}
-                <details className={css.advancedOptions}>
-                  <summary>执行历史</summary>
-                  {Object.values(document.attempts)
-                    .filter(item => item.taskId === task.id)
-                    .map((item, index) => (
-                      <details key={item.id}>
-                        <summary>
-                          第 {index + 1} 轮 · {LABEL[item.status]}
-                        </summary>
-                        <p>{item.review?.feedback || item.error || '暂无审查意见'}</p>
-                        <button
-                          onClick={() => {
-                            open(item.sessionId)
-                          }}
-                        >
-                          查看本轮日志
-                        </button>
-                        {item.evidence && <pre>{item.evidence.diff}</pre>}
-                      </details>
-                    ))}
+                          .catch(report)
+                      }}
+                    >
+                      勾选完成
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        void saveDocument(setTaskStatus(document, task.id, 'sync-blocked')).catch(report)
+                      }}
+                    >
+                      暂停并等待
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        void saveDocument(setTaskStatus(document, task.id, 'async-blocked')).catch(report)
+                      }}
+                    >
+                      让后续任务先做
+                    </button>
+                    <button
+                      disabled={!ready}
+                      onClick={() => {
+                        void saveDocument(
+                          task.status === 'async-blocked'
+                            ? wakeTask(document, task.id)
+                            : setTaskStatus(document, task.id, 'ready'),
+                        ).catch(report)
+                      }}
+                    >
+                      恢复任务
+                    </button>
+                  </div>
+                  <label>
+                    放到
+                    <select
+                      disabled={!ready}
+                      value={
+                        document.blockedIds.includes(task.id)
+                          ? 'blocked'
+                          : document.archiveIds.includes(task.id)
+                            ? 'archive'
+                            : document.processes.find(process => process.taskIds.includes(task.id))?.id ?? 'backlog'
+                      }
+                      onChange={(event) => {
+                        const value = event.target.value
+                        const process = document.processes.find(item => item.id === value)
+                        void saveDocument(
+                          moveTask(
+                            document,
+                            task.id,
+                            value === 'blocked'
+                              ? { zone: 'blocked', index: document.blockedIds.length }
+                              : value === 'archive'
+                                ? { zone: 'archive', index: document.archiveIds.length }
+                                : process === undefined
+                                  ? { zone: 'backlog', index: document.backlogIds.length }
+                                  : { zone: 'process', processId: process.id, index: process.taskIds.length },
+                          ),
+                        ).catch(report)
+                      }}
+                    >
+                      <option value="backlog">待办</option>
+                      {document.processes.map(process => (
+                        <option key={process.id} value={process.id}>
+                          {process.name}
+                        </option>
+                      ))}
+                      <option value="blocked">已暂停</option>
+                      <option value="archive">已完成</option>
+                    </select>
+                  </label>
                 </details>
-              </>
-            )}
-          </aside>
+              )}
+              <details className={css.advancedOptions}>
+                <summary>执行历史</summary>
+                {Object.values(document.attempts)
+                  .filter(item => item.taskId === task.id)
+                  .map((item, index) => (
+                    <details key={item.id}>
+                      <summary>
+                        第 {index + 1} 轮 · {LABEL[item.status]}
+                      </summary>
+                      <p>{item.review?.feedback || item.error || '暂无审查意见'}</p>
+                      <button
+                        onClick={() => {
+                          open(item.sessionId)
+                        }}
+                      >
+                        查看本轮日志
+                      </button>
+                      {item.evidence && <pre>{item.evidence.diff}</pre>}
+                    </details>
+                  ))}
+              </details>
+            </aside>
+          )}
         </main>
+        <Modal
+          open={deleting !== ''}
+          title="删除这个任务？"
+          closeLabel="关闭"
+          description={`将从看板移除「${document.tasks[deleting]?.description ?? ''}」。此操作无法撤销。`}
+          onClose={() => {
+            setDeleting('')
+          }}
+          footer={(
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleting('')
+                }}
+              >
+                取消
+              </Button>
+              <Button variant="primary" disabled={!ready} onClick={confirmDelete}>
+                删除任务
+              </Button>
+            </>
+          )}
+        />
+        <RiskConfirmation
+          open={clearing}
+          title="清空当前工作区看板？"
+          description="将删除这个工作区的全部任务、列和执行记录。其他工作区不受影响。此操作无法撤销。"
+          acknowledgeLabel="我了解此操作无法撤销"
+          cancelLabel="取消"
+          confirmLabel="清空看板"
+          acknowledged={acknowledged}
+          disabled={!ready}
+          onAcknowledgedChange={setAcknowledged}
+          onCancel={() => {
+            setAcknowledged(false)
+            setClearing(false)
+          }}
+          onConfirm={clearBoard}
+        />
       </div>
     </div>
   )

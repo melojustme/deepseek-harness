@@ -68,13 +68,18 @@ export interface WorkSchedulerApi {
   load(request: RpcRequest<{ workspaceId: WorkspaceId }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
 
   /**
-   * Save planning changes at the current revision without overwriting execution records. The payload schema
-   * validates the full document at the wire boundary; the host store
+   * Save planning changes at the current revision without overwriting execution records,
+   * except a version-compatible empty document which replaces this Workspace record.
+   * The payload schema validates the full document at the wire boundary; the host store
    * revalidates stored records at the durable read boundary.
    */
-  save(request: RpcRequest<{ workspaceId: WorkspaceId; document: WorkSchedulerDocument }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
+  save(
+    request: RpcRequest<{ workspaceId: WorkspaceId; document: WorkSchedulerDocument }>,
+  ): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
   /** Apply an execution or review command and return its durable result. */
-  command(request: RpcRequest<{ workspaceId: WorkspaceId; command: SchedulerCommand }>): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
+  command(
+    request: RpcRequest<{ workspaceId: WorkspaceId; command: SchedulerCommand }>,
+  ): Promise<RpcResponse<{ document: WorkSchedulerDocument }>>
 
 }
 
@@ -93,7 +98,8 @@ export interface WorkSchedulerStore {
    */
   load(workspaceId: WorkspaceId): Promise<{ document: WorkSchedulerDocument }>
   /**
-   * Save planning changes at the current revision without overwriting execution records.
+   * Save planning changes at the current revision without overwriting execution records,
+   * except a version-compatible empty document which replaces this Workspace record.
    * @param workspaceId - owning workspace.
    * @param document - the full next document (no partial merge).
    * @returns The incremented document after durability; conflicts reject.

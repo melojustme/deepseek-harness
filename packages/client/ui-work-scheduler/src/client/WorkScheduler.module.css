@@ -86,13 +86,21 @@
 .deliveryLane[data-drop-target] { outline: 2px dashed var(--dsw-static-deepseek-500); outline-offset: 5px; border-radius: 10px; }
 .deliveryCard[draggable='true'] { cursor: grab; }
 .deliveryCard[data-dragging] { opacity: .5; }
-.deliveryCard[data-drop-position='before'] { box-shadow: 0 -4px 0 var(--dsw-static-deepseek-500); }
-.deliveryCard[data-drop-position='after'] { box-shadow: 0 4px 0 var(--dsw-static-deepseek-500); }
+.cardShell { margin: 12px 0; }
+.cardShell[data-drop-position='before'] { box-shadow: 0 -4px 0 var(--dsw-static-deepseek-500); }
+.cardShell[data-drop-position='after'] { box-shadow: 0 4px 0 var(--dsw-static-deepseek-500); }
+.cardActions { display: flex; gap: 6px; margin-top: 6px; }
+.cardActions button { flex: 1; }
+.laneAdd { width: 100%; margin-top: 8px; }
+.inPlaceEditor { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-layer-1); }
+.inPlaceEditor label { display: grid; gap: 6px; }
+.inPlaceEditor textarea { min-height: 52px; }
+.inPlaceEditor .editorActions { margin-top: 4px; }
 .dropConfirmation { padding: 18px 24px; border-bottom: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); }
 .dropConfirmation h2 { margin: 0; font-size: 18px; }
 .dropConfirmation button + button { margin-left: 10px; }
 .deliveryLane h2 { font-size: 13px; display: flex; justify-content: space-between; }
-.deliveryWindow .deliveryCard { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 18px; margin: 12px 0; border-radius: 12px; text-align: left; }
+.deliveryWindow .deliveryCard { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 18px; margin: 0; border-radius: 12px; text-align: left; }
 .deliveryCard strong { white-space: pre-wrap; overflow-wrap: anywhere; }
 .deliveryCard small { color: var(--dsw-alias-label-tertiary); }
 .deliveryDetails { box-sizing: border-box; width: 100%; max-width: 820px; padding: 28px; margin: 0 auto; }
@@ -107,6 +115,10 @@
 .deliveryDiff { font: 12px/1.7 monospace; background: var(--dsw-alias-bg-layer-2); padding: 10px; }
 .deliveryNotice { border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); padding: 10px; font-size: 12px; }
 .deliveryComposer { box-sizing: border-box; width: 100%; max-width: 820px; flex: 1; min-height: 0; padding: 28px; margin: 0 auto; overflow: auto; }
+.inlineComposer { box-sizing: border-box; width: 100%; padding: 16px 24px; border-bottom: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-1); display: grid; gap: 10px; }
+.inlineComposer h2 { margin: 0; font-size: 15px; }
+.inlineComposer label { display: grid; gap: 6px; }
+.inlineComposer textarea { min-height: 52px; }
 .deliveryWindow [hidden] { display: none !important; }
 .deliveryWindow .primaryAction { background: var(--dsw-alias-button-primary-fill); border-color: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
 .deliveryWindow summary { cursor: pointer; padding: 10px 0; color: var(--dsw-alias-label-secondary); }

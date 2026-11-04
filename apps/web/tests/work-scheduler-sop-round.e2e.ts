@@ -126,23 +126,25 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     await page.setViewportSize(desktopViewport)
     expect(await dialog.boundingBox()).toEqual(windowed)
 
+    expect(await dialog.getByLabel('规划看板').isVisible()).toBe(true)
+    expect(await dialog.getByLabel('状态看板').count()).toBe(0)
     await dialog.getByRole('button', { name: '新建任务', exact: true }).click()
     await dialog.getByRole('textbox', { name: '任务描述' }).fill('校验新建任务体验')
-    await dialog.getByRole('textbox', { name: '验收条件（每行一项）' }).fill('任务可以保存\n返回看板保留筛选')
-    expect(await dialog.locator('main').isVisible()).toBe(false)
+    await dialog.getByRole('textbox', { name: '验收条件（可选，每行一项）' }).fill('任务可以保存\n返回看板保留筛选')
+    expect(await dialog.getByLabel('规划看板').isVisible()).toBe(true)
     const composerSnapshot = await captureStableAria(
       page,
       '[role="dialog"][aria-label="工作调度"]',
       scaffold.workspaceCwd,
     )
     await compareOrRefreshGolden(UI_EXPECTED, composerSnapshot, MODE)
-    await dialog.getByRole('button', { name: '保存待办' }).click()
+    await dialog.getByRole('button', { name: '添加任务', exact: true }).click()
     const card = dialog.getByRole('button', { name: /校验新建任务体验/ })
     await card.waitFor()
     await dialog.getByRole('button', { name: '新建任务', exact: true }).click()
     await dialog.getByRole('textbox', { name: '任务描述' }).fill('校验拖动排序')
-    await dialog.getByRole('textbox', { name: '验收条件（每行一项）' }).fill('排序保存在 Host')
-    await dialog.getByRole('button', { name: '保存待办' }).click()
+    await dialog.getByRole('textbox', { name: '验收条件（可选，每行一项）' }).fill('排序保存在 Host')
+    await dialog.getByRole('button', { name: '添加任务', exact: true }).click()
     const secondCard = dialog.getByRole('button', { name: /校验拖动排序/ })
     await secondCard.waitFor()
     const selectedWorkspaceId = await dialog.getByLabel('看板工作区').inputValue()
@@ -155,22 +157,25 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
         return current.backlogIds.map(id => current.tasks[id]?.description)
       })
       .toEqual(['校验拖动排序', '校验新建任务体验'])
-    await card.dragTo(dialog.getByRole('region', { name: '执行中列' }))
-    await dialog.getByRole('button', { name: '确认执行' }).waitFor()
-    const dragSnapshot = await captureStableAria(page, '[aria-label="确认任务操作"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(
-      fileURLToPath(new URL('./snapshots/work-scheduler-sop-round/drag.expected.md', import.meta.url)),
-      dragSnapshot,
-      MODE,
-    )
-    await dialog.getByRole('button', { name: '取消操作' }).click()
+    await card.dragTo(dialog.getByRole('region', { name: '已完成列' }))
+    await expect
+      .poll(async () => {
+        const workspace = scaffold.ctx.workspaceRegistry.list().find(item => item.id === selectedWorkspaceId)
+        if (workspace === undefined) return []
+        const current = (await scaffold.ctx.workSchedulerStore.load(workspace.id)).document
+        return current.archiveIds.map(id => current.tasks[id]?.description)
+      })
+      .toContain('校验新建任务体验')
+    expect(await dialog.getByRole('status').textContent()).toContain('已勾选完成')
+    expect(await dialog.getByText('先完成执行并检查本轮证据，才能通过审查。').count()).toBe(0)
     const currentWorkspace = scaffold.ctx.workspaceRegistry.list().find(item => item.id === selectedWorkspaceId)
     if (currentWorkspace === undefined) throw new Error('expected workspace')
     expect((await scaffold.ctx.workSchedulerStore.load(currentWorkspace.id)).document.attempts).toEqual({})
-    await card.click()
-    expect(await dialog.locator('[aria-label="状态看板"]').isVisible()).toBe(false)
+    await secondCard.click()
+    expect(await dialog.locator('[aria-label="规划看板"]').isVisible()).toBe(false)
     await dialog.getByRole('button', { name: '执行任务', exact: true }).waitFor()
     expect(await dialog.getByLabel('Git 起始版本').isVisible()).toBe(false)
+    expect(await dialog.getByText('任务安排').isVisible()).toBe(true)
     const detailSnapshot = await captureStableAria(
       page,
       '[role="dialog"][aria-label="工作调度"]',
@@ -181,8 +186,18 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
       detailSnapshot,
       MODE,
     )
+    await dialog.getByRole('button', { name: '执行任务', exact: true }).click()
+    await dialog.getByRole('button', { name: '确认执行' }).waitFor()
+    const dragSnapshot = await captureStableAria(page, '[aria-label="确认任务操作"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(
+      fileURLToPath(new URL('./snapshots/work-scheduler-sop-round/drag.expected.md', import.meta.url)),
+      dragSnapshot,
+      MODE,
+    )
+    await dialog.getByRole('button', { name: '取消操作' }).click()
+    expect((await scaffold.ctx.workSchedulerStore.load(currentWorkspace.id)).document.attempts).toEqual({})
     await dialog.getByRole('button', { name: '返回看板' }).click()
-    expect(await card.evaluate(element => element === document.activeElement)).toBe(true)
+    expect(await secondCard.evaluate(element => element === document.activeElement)).toBe(true)
 
     await dialog.getByRole('button', { name: '全屏' }).click()
     expect(await dialog.boundingBox()).toEqual({
@@ -194,14 +209,14 @@ describe('web e2e: SOP stages synchronize into the Workspace board', () => {
     await dialog.getByRole('button', { name: '还原' }).click()
     expect(await dialog.boundingBox()).toEqual(windowed)
     await page.setViewportSize({ width: 390, height: 844 })
-    await card.click()
+    await secondCard.click()
     const mobileOverflow = await dialog.evaluate(element => ({
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth,
     }))
     expect(mobileOverflow.scrollWidth).toBe(mobileOverflow.clientWidth)
     await page.keyboard.press('Escape')
-    expect(await card.isVisible()).toBe(true)
+    expect(await secondCard.isVisible()).toBe(true)
     await page.setViewportSize(desktopViewport)
 
     await dialog.getByRole('button', { name: /Implementation/ }).click()

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/design/work-scheduler/agent-delivery/design.md
-design.md: 35e376a8649525e0a21faf4d58175f423ee8b1e0
-design.zh.md: 3f07860e6a01d5040cf75a43ac9a5b18fbc53880
+design.md: 34ec958291a720655f514ac804617a5832f03cfd
+design.zh.md: 7aba2347c6b81d7ced69ba35bde9c2ba0ab4a188

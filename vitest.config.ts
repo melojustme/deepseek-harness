@@ -195,6 +195,9 @@ export default defineConfig({
         'packages/client/ui-user-questions/src/client/QuestionComposer.tsx',
         'packages/client/ui-primitives/src/Menu.tsx',
         'packages/client/ui-primitives/src/RiskConfirmation.tsx',
+        // Overlay, keyboard, and Workspace-fence branches need a browser-grade
+        // harness. Planning/execution board product paths stay unit-pinned.
+        'packages/client/ui-work-scheduler/src/client/WorkScheduler.tsx',
         'packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx',
         'packages/client/ui-workspace/src/client/WorkspacePicker.tsx',
         'packages/client/ui-renderer/src/client/*',
