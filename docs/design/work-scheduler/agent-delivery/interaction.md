@@ -6,9 +6,9 @@ This reference defines the interaction redesign over the [execution design](desi
 
 ## Navigation and actions
 
-The board occupies the full content area and defaults to personal planning lanes (待办, user-named threads, 已暂停, 已完成). 看板选项 opens the optional execution/review board. Selecting a task replaces the board with a readable task page; returning restores the board selection and filters. 新建任务 opens an inline composer that keeps the board visible. Escape closes the composer before task details, then the scheduler. Closing the scheduler never cancels execution.
+The board occupies the full content area and defaults to personal planning lanes (待办, user-named threads, 已暂停, 已完成). 看板选项 opens the optional execution/review board. Selecting a task replaces the board with a readable task page; returning restores the board selection and filters. 新建任务 and each column 添加 open an inline composer that keeps the board visible. Card 编辑 edits in place; card 删除 confirms then removes that unattempted task. Escape closes the composer or delete confirmation before task details, then the scheduler. Closing the scheduler never cancels execution.
 
-Each stage has one emphasized next action: add a task, start execution, handle a pending interaction, or approve reviewed evidence. Stop, rework, editing, and thread management remain accessible secondary actions. Import/export, the execution board, and Git revision controls stay under labeled expandable sections. 清空看板 is a visible header action that replaces this Workspace document after confirmation. A missing Workspace points to the existing Workspace picker; missing model credentials lead to model settings and return to the task without losing its input.
+Each stage has one emphasized next action: add a task, start execution, handle a pending interaction, or approve reviewed evidence. Stop, rework, and thread management remain accessible secondary actions. Import/export, the execution board, and Git revision controls stay under labeled expandable sections. 清空看板 is a visible header action that replaces this Workspace document after confirmation. A missing Workspace points to the existing Workspace picker; missing model credentials lead to model settings and return to the task without losing its input.
 
 ## Dragging rules
 

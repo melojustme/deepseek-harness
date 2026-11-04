@@ -12,7 +12,7 @@ import type {
   WorkSchedulerDocument,
 } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-tool-todo/client'
-import { IconListPenOutline16, RiskConfirmation, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconListPenOutline16, Modal, RiskConfirmation, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   addProcess,
   addTask,
@@ -20,6 +20,7 @@ import {
   isClearedSchedulerDocument,
   moveTask,
   normalizeSchedulerState,
+  removeTask,
   renameProcess,
   setTaskStatus,
   wakeTask,
@@ -146,6 +147,7 @@ export function SchedulerPanel({
   const [notice, setNotice] = useState('')
   const [clearing, setClearing] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
+  const [deleting, setDeleting] = useState('')
   const [dragged, setDragged] = useState<{ taskId: string; workspaceId: WorkspaceId; revision: number }>()
   const [dropTarget, setDropTarget] = useState('')
   const [dropPosition, setDropPosition] = useState<{ id: string; after: boolean }>()
@@ -191,6 +193,7 @@ export function SchedulerPanel({
     setTaskThread('backlog')
     setClearing(false)
     setAcknowledged(false)
+    setDeleting('')
     setAddingColumn(false)
     setNewThread('')
     actions.select('')
@@ -204,11 +207,12 @@ export function SchedulerPanel({
       setDropPosition(undefined)
       setClearing(false)
       setAcknowledged(false)
+      setDeleting('')
     }
   }, [view.open])
   useEffect(() => {
-    if (composer) titleInput.current?.focus()
-  }, [composer])
+    if (composer || editing) titleInput.current?.focus()
+  }, [composer, editing])
   useEffect(() => {
     if (addingColumn) columnInput.current?.focus()
   }, [addingColumn])
@@ -219,8 +223,15 @@ export function SchedulerPanel({
         if (clearing) {
           setClearing(false)
           setAcknowledged(false)
-        } else if (pendingDrop !== undefined) setPendingDrop(undefined)
+        } else if (deleting) setDeleting('')
+        else if (pendingDrop !== undefined) setPendingDrop(undefined)
         else if (composer) setComposer(false)
+        else if (editing) {
+          setEditing('')
+          setDescription('')
+          setAcceptance('')
+          setBoundSession('')
+        }
         else if (addingColumn) setAddingColumn(false)
         else if (view.selected) {
           actions.select('')
@@ -249,7 +260,7 @@ export function SchedulerPanel({
     return () => {
       globalThis.document.removeEventListener('keydown', keyboard)
     }
-  }, [actions, addingColumn, clearing, composer, pendingDrop, view.open, view.selected])
+  }, [actions, addingColumn, clearing, composer, deleting, editing, pendingDrop, view.open, view.selected])
   useEffect(() => {
     if (!view.open || composer) return
     if (pendingDrop !== undefined) confirmDropButton.current?.focus()
@@ -453,13 +464,18 @@ export function SchedulerPanel({
       .split('\n')
       .map(item => item.trim())
       .filter(Boolean)
+    const lane = taskThread === 'backlog' || taskThread === 'blocked' || taskThread === 'archive'
+      ? {}
+      : { processId: taskThread }
     const next = editing
       ? structuredClone(document)
       : addTask(document, {
         description,
         acceptance: criteria,
         ...(boundSession ? { sessionId: boundSession as SessionId } : {}),
-        ...(taskThread === 'backlog' ? {} : { processId: taskThread }),
+        ...lane,
+        ...(taskThread === 'archive' ? { status: 'done' as const } : {}),
+        ...(taskThread === 'blocked' ? { status: 'async-blocked' as const } : {}),
       })
     if (editing) {
       const edited = next.tasks[editing]
@@ -477,6 +493,41 @@ export function SchedulerPanel({
     setDescription('')
     setAcceptance('')
     setBoundSession('')
+  }
+  const startCreate = (lane = 'backlog') => {
+    setEditing('')
+    setDescription('')
+    setAcceptance('')
+    setBoundSession('')
+    setTaskThread(lane)
+    setComposer(true)
+  }
+  const startEdit = (id: string) => {
+    const item = document.tasks[id]
+    if (item === undefined) return
+    setComposer(false)
+    setEditing(id)
+    setDescription(item.description)
+    setAcceptance(item.acceptance.join('\n'))
+    setBoundSession(item.sessionId ?? '')
+    setTaskThread(
+      document.processes.find(process => process.taskIds.includes(id))?.id
+        ?? (document.blockedIds.includes(id) ? 'blocked' : document.archiveIds.includes(id) ? 'archive' : 'backlog'),
+    )
+    actions.select('')
+  }
+  const confirmDelete = () => {
+    if (!ready || !deleting) return
+    const selectedWorkspace = workspaceId
+    const id = deleting
+    setDeleting('')
+    void saveDocument(removeTask(document, id))
+      .then(() => {
+        if (selectedWorkspace !== currentWorkspace.current) return
+        setNotice('已删除任务。')
+        if (view.selected === id) actions.select('')
+      })
+      .catch(report)
   }
   const submitColumn = () => {
     if (!newThread.trim()) return
@@ -550,15 +601,10 @@ export function SchedulerPanel({
           <div className={css.headerActions}>
             <button
               className={css.primaryAction}
-              hidden={composer || task !== undefined}
+              hidden={composer || editing !== '' || task !== undefined}
               disabled={!ready}
               onClick={() => {
-                setEditing('')
-                setDescription('')
-                setAcceptance('')
-                setBoundSession('')
-                setTaskThread('backlog')
-                setComposer(true)
+                startCreate()
               }}
             >
               新建任务
@@ -759,6 +805,8 @@ export function SchedulerPanel({
                     {process.name}
                   </option>
                 ))}
+                <option value="blocked">已暂停</option>
+                <option value="archive">已完成</option>
               </select>
             </label>
             <details>
@@ -846,21 +894,21 @@ export function SchedulerPanel({
                   )}
                   {rows.length === 0 && (
                     <p className={css.muted}>
-                      {emptyBoard && lane.key === 'backlog' ? '点「新建任务」开始规划。' : '暂无任务'}
+                      {emptyBoard && lane.key === 'backlog' ? '点「新建任务」或列内「添加」开始规划。' : '暂无任务'}
                     </p>
                   )}
                   {rows.map((id) => {
                     const item = document.tasks[id],
                       current = currentAttempt(document, id)
                     if (item === undefined) return null
+                    const personal = planning && current === undefined
                     return (
-                      <button
-                        className={css.deliveryCard}
-                        draggable={ready && pendingDrop === undefined && (!planning || current === undefined)}
-                        data-dragging={dragged?.taskId === id || undefined}
+                      <div
+                        className={css.cardShell}
                         data-drop-position={
                           dropPosition?.id === id ? (dropPosition.after ? 'after' : 'before') : undefined
                         }
+                        key={id}
                         onDragOver={(event) => {
                           if (!ready || dragged === undefined || pendingDrop !== undefined) return
                           event.preventDefault()
@@ -868,68 +916,6 @@ export function SchedulerPanel({
                           setDropTarget(lane.key)
                           const bounds = event.currentTarget.getBoundingClientRect()
                           setDropPosition({ id, after: event.clientY > bounds.top + bounds.height / 2 })
-                        }}
-                        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
-                        onDragEnd={() => {
-                          setDragged(undefined)
-                          setDropTarget('')
-                          setDropPosition(undefined)
-                        }}
-                        onKeyDown={(event) => {
-                          if (!event.altKey || !ready) return
-                          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
-                          event.preventDefault()
-                          selectedButton.current = event.currentTarget
-                          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-                            const index =
-                              lanes.findIndex(item => item.key === lane.key) + (event.key === 'ArrowLeft' ? -1 : 1)
-                            const destination = lanes[index]
-                            if (destination === undefined) return
-                            if (planning && destination.zone !== undefined && current === undefined) {
-                              const idsAt = laneIds(destination)
-                              void saveDocument(
-                                moveTask(
-                                  document,
-                                  id,
-                                  destination.zone === 'process' && destination.processId !== undefined
-                                    ? { zone: 'process', processId: destination.processId, index: idsAt.length }
-                                    : { zone: destination.zone, index: idsAt.length },
-                                ),
-                              )
-                                .then(() => {
-                                  if (workspaceId === currentWorkspace.current && destination.zone === 'archive') {
-                                    setNotice('已勾选完成。')
-                                  }
-                                })
-                                .catch(report)
-                            } else if (!planning) boardGesture(id, destination.key as BoardColumn)
-                          } else {
-                            const index = rows.indexOf(id) + (event.key === 'ArrowUp' ? -1 : 1)
-                            const target = rows[index]
-                            if (target === undefined) return
-                            if (planning && lane.zone !== undefined && current === undefined) {
-                              void saveDocument(
-                                moveTask(
-                                  document,
-                                  id,
-                                  lane.zone === 'process' && lane.processId !== undefined
-                                    ? { zone: 'process', processId: lane.processId, index }
-                                    : { zone: lane.zone, index },
-                                ),
-                              ).catch(report)
-                            } else if (!planning) boardGesture(id, lane.key as BoardColumn, target, event.key === 'ArrowDown')
-                          }
-                        }}
-                        onDragStart={(event) => {
-                          if (workspaceId === undefined || !ready) {
-                            event.preventDefault()
-                            return
-                          }
-                          selectedButton.current = event.currentTarget
-                          setDragged({ taskId: id, workspaceId, revision: document.revision })
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('application/x-dsh-task', id)
-                          event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
                         }}
                         onDrop={(event) => {
                           if (planning) {
@@ -940,23 +926,197 @@ export function SchedulerPanel({
                             )
                           } else boardDrop(event, lane.key as BoardColumn, id)
                         }}
-                        aria-pressed={view.selected === id}
-                        key={id}
-                        onClick={(event) => {
-                          if (dragged !== undefined) return
-                          selectedButton.current = event.currentTarget
-                          actions.select(id)
-                        }}
                       >
-                        <small>
-                          {document.processes.find(process => process.taskIds.includes(id))?.name ?? '待办'}
-                        </small>
-                        <strong>{item.description}</strong>
-                        <span>{cardLabel(id)}</span>
-                        {item.acceptance.length > 0 && <small>{item.acceptance.length} 项验收条件</small>}
-                      </button>
+                        {editing === id && !composer ? (
+                          <form
+                            className={css.inPlaceEditor}
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              void submitTask().catch(report)
+                            }}
+                          >
+                            <label>
+                              任务描述
+                              <textarea
+                                ref={titleInput}
+                                required
+                                value={description}
+                                onChange={(event) => {
+                                  setDescription(event.target.value)
+                                }}
+                              />
+                            </label>
+                            <label>
+                              验收条件（可选，每行一项）
+                              <textarea
+                                value={acceptance}
+                                onChange={(event) => {
+                                  setAcceptance(event.target.value)
+                                }}
+                              />
+                            </label>
+                            <details>
+                              <summary>更多选项</summary>
+                              <label>
+                                关联会话
+                                <select
+                                  value={boundSession}
+                                  onChange={(event) => {
+                                    setBoundSession(event.target.value)
+                                  }}
+                                >
+                                  <option value="">不关联</option>
+                                  {workspace?.sessionIds.map(session => (
+                                    <option key={session} value={session}>
+                                      {sessions.byId[session]?.displayTitle ?? session}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </details>
+                            <div className={css.editorActions}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing('')
+                                  setDescription('')
+                                  setAcceptance('')
+                                  setBoundSession('')
+                                }}
+                              >
+                                取消
+                              </button>
+                              <button className={css.primaryAction} disabled={!ready || !description.trim()}>
+                                保存
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              className={css.deliveryCard}
+                              draggable={ready && pendingDrop === undefined && editing !== id
+                                && (!planning || current === undefined)}
+                              data-dragging={dragged?.taskId === id || undefined}
+                              aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                              onDragEnd={() => {
+                                setDragged(undefined)
+                                setDropTarget('')
+                                setDropPosition(undefined)
+                              }}
+                              onKeyDown={(event) => {
+                                if (!event.altKey || !ready) return
+                                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                                event.preventDefault()
+                                selectedButton.current = event.currentTarget
+                                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                                  const index =
+                                    lanes.findIndex(item => item.key === lane.key)
+                                    + (event.key === 'ArrowLeft' ? -1 : 1)
+                                  const destination = lanes[index]
+                                  if (destination === undefined) return
+                                  if (planning && destination.zone !== undefined && current === undefined) {
+                                    const idsAt = laneIds(destination)
+                                    void saveDocument(
+                                      moveTask(
+                                        document,
+                                        id,
+                                        destination.zone === 'process' && destination.processId !== undefined
+                                          ? { zone: 'process', processId: destination.processId, index: idsAt.length }
+                                          : { zone: destination.zone, index: idsAt.length },
+                                      ),
+                                    )
+                                      .then(() => {
+                                        if (
+                                          workspaceId === currentWorkspace.current
+                                          && destination.zone === 'archive'
+                                        ) {
+                                          setNotice('已勾选完成。')
+                                        }
+                                      })
+                                      .catch(report)
+                                  } else if (!planning) boardGesture(id, destination.key as BoardColumn)
+                                } else {
+                                  const index = rows.indexOf(id) + (event.key === 'ArrowUp' ? -1 : 1)
+                                  const target = rows[index]
+                                  if (target === undefined) return
+                                  if (planning && lane.zone !== undefined && current === undefined) {
+                                    void saveDocument(
+                                      moveTask(
+                                        document,
+                                        id,
+                                        lane.zone === 'process' && lane.processId !== undefined
+                                          ? { zone: 'process', processId: lane.processId, index }
+                                          : { zone: lane.zone, index },
+                                      ),
+                                    ).catch(report)
+                                  } else if (!planning) {
+                                    boardGesture(id, lane.key as BoardColumn, target, event.key === 'ArrowDown')
+                                  }
+                                }
+                              }}
+                              onDragStart={(event) => {
+                                if (workspaceId === undefined || !ready) {
+                                  event.preventDefault()
+                                  return
+                                }
+                                selectedButton.current = event.currentTarget
+                                setDragged({ taskId: id, workspaceId, revision: document.revision })
+                                event.dataTransfer.effectAllowed = 'move'
+                                event.dataTransfer.setData('application/x-dsh-task', id)
+                                event.dataTransfer.setData('application/x-dsh-workspace', workspaceId)
+                              }}
+                              aria-pressed={view.selected === id}
+                              onClick={(event) => {
+                                if (dragged !== undefined) return
+                                selectedButton.current = event.currentTarget
+                                actions.select(id)
+                              }}
+                            >
+                              <strong>{item.description}</strong>
+                              <span>{cardLabel(id)}</span>
+                              {item.acceptance.length > 0 && <small>{item.acceptance.length} 项验收条件</small>}
+                            </button>
+                            {personal && (
+                              <div className={css.cardActions}>
+                                <button
+                                  type="button"
+                                  disabled={!ready}
+                                  onClick={() => {
+                                    startEdit(id)
+                                  }}
+                                >
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!ready}
+                                  onClick={() => {
+                                    setDeleting(id)
+                                  }}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )
                   })}
+                  {planning && (
+                    <button
+                      type="button"
+                      className={css.laneAdd}
+                      disabled={!ready}
+                      aria-label={`在${lane.label}列添加`}
+                      onClick={() => {
+                        startCreate(lane.zone === 'process' ? lane.key : lane.zone ?? 'backlog')
+                      }}
+                    >
+                      添加
+                    </button>
+                  )}
                 </section>
               )
             })}
@@ -1237,7 +1397,10 @@ export function SchedulerPanel({
                         setAcceptance(task.acceptance.join('\n'))
                         setBoundSession(task.sessionId ?? '')
                         setTaskThread(
-                          document.processes.find(process => process.taskIds.includes(task.id))?.id ?? 'backlog',
+                          document.processes.find(process => process.taskIds.includes(task.id))?.id
+                            ?? (document.blockedIds.includes(task.id)
+                              ? 'blocked'
+                              : document.archiveIds.includes(task.id) ? 'archive' : 'backlog'),
                         )
                         setComposer(true)
                       }}
@@ -1383,6 +1546,30 @@ export function SchedulerPanel({
             </aside>
           )}
         </main>
+        <Modal
+          open={deleting !== ''}
+          title="删除这个任务？"
+          closeLabel="关闭"
+          description={`将从看板移除「${document.tasks[deleting]?.description ?? ''}」。此操作无法撤销。`}
+          onClose={() => {
+            setDeleting('')
+          }}
+          footer={(
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleting('')
+                }}
+              >
+                取消
+              </Button>
+              <Button variant="primary" disabled={!ready} onClick={confirmDelete}>
+                删除任务
+              </Button>
+            </>
+          )}
+        />
         <RiskConfirmation
           open={clearing}
           title="清空当前工作区看板？"

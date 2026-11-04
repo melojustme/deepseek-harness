@@ -190,6 +190,58 @@ describe('native work scheduler panel', () => {
     expect(view.getByRole('status').textContent).not.toContain('先完成执行并检查本轮证据，才能通过审查。')
   })
 
+  it('edits a personal task on the card without opening details', async () => {
+    const view = mount()
+    fireEvent.click(view.getByRole('button', { name: '编辑' }))
+    expect(view.queryByRole('button', { name: '返回看板' })).toBeNull()
+    fireEvent.change(view.getByLabelText('任务描述'), { target: { value: '改写面板' } })
+    fireEvent.click(view.getByRole('button', { name: '保存' }))
+    await waitFor(() => {
+      expect(view.snapshot().document.tasks.task?.description).toBe('改写面板')
+    })
+    expect(view.getByLabelText('规划看板').hidden).toBe(false)
+  })
+
+  it('deletes a personal task after confirmation and keeps the board', async () => {
+    const view = mount()
+    fireEvent.click(view.getByRole('button', { name: '删除' }))
+    const confirm = view.getByRole('dialog', { name: '删除这个任务？' })
+    fireEvent.click(within(confirm).getByRole('button', { name: '取消' }))
+    expect(view.snapshot().document.tasks.task).toBeDefined()
+    fireEvent.click(view.getByRole('button', { name: '删除' }))
+    fireEvent.click(view.getByRole('button', { name: '删除任务' }))
+    await waitFor(() => {
+      expect(view.snapshot().document.tasks.task).toBeUndefined()
+    })
+    expect(view.getByRole('status').textContent).toContain('已删除任务。')
+    expect(view.getByLabelText('规划看板').hidden).toBe(false)
+  })
+
+  it('creates from a column add control, including 已完成', async () => {
+    const view = mount(createSchedulerState())
+    fireEvent.click(view.getByRole('button', { name: '在待办列添加' }))
+    fireEvent.change(view.getByLabelText('任务描述'), { target: { value: '列内新建' } })
+    fireEvent.click(view.getByRole('button', { name: '添加任务' }))
+    await waitFor(() => {
+      expect(Object.values(view.snapshot().document.tasks)[0]?.description).toBe('列内新建')
+    })
+    fireEvent.click(view.getByRole('button', { name: '在已完成列添加' }))
+    fireEvent.change(view.getByLabelText('任务描述'), { target: { value: '已做完' } })
+    expect((view.getByLabelText('放到') as HTMLSelectElement).value).toBe('archive')
+    fireEvent.click(view.getByRole('button', { name: '添加任务' }))
+    await waitFor(() => {
+      expect(view.snapshot().document.archiveIds).toHaveLength(1)
+    })
+  })
+
+  it('hides card edit and delete on attempted work', () => {
+    const document = taskDocument()
+    document.attempts[attemptId] = attempt('running')
+    const view = mount(document)
+    expect(view.queryByRole('button', { name: '编辑' })).toBeNull()
+    expect(view.queryByRole('button', { name: '删除' })).toBeNull()
+  })
+
   it('lets an unattempted card move to 已通过 on the optional execution board without the evidence banner', async () => {
     const view = mount()
     fireEvent.click(view.getByText('看板选项'))
@@ -295,6 +347,7 @@ describe('native work scheduler panel', () => {
   it('disables writes before the workspace has loaded', () => {
     const view = mount(taskDocument(), 'loading')
     expect((view.getByRole('button', { name: '新建任务' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((view.getByRole('button', { name: '在待办列添加' }) as HTMLButtonElement).disabled).toBe(true)
     expect((view.getByRole('button', { name: '清空看板' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -316,7 +369,7 @@ describe('native work scheduler panel', () => {
 
   it('keeps the board visible while composing and reveals an empty-state hint', () => {
     const view = mount(createSchedulerState())
-    expect(view.getByText('点「新建任务」开始规划。')).toBeTruthy()
+    expect(view.getByText('点「新建任务」或列内「添加」开始规划。')).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: '新建任务' }))
     expect(view.getByLabelText('规划看板').hidden).toBe(false)
     fireEvent.click(view.getByRole('button', { name: '取消' }))

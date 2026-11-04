@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-18-web-work-scheduler.md
-2026-08-18-web-work-scheduler.md: 672baf23773f4f2e349f32555848a60eef5c314b
-2026-08-18-web-work-scheduler.zh.md: a637aac5da1b52552189d5e9f1983160469d7c95
+2026-08-18-web-work-scheduler.md: 146faa4ce2206d1e0dec62f4ccc374677c65aa36
+2026-08-18-web-work-scheduler.zh.md: 5579b68aaee1bc8a494738a3c1d39fa8d4378d0a

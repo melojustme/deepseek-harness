@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/design/work-scheduler/agent-delivery/interaction.md
-interaction.md: 996ca3f604c6a64d4cf31b6c2e745c981139dd7a
-interaction.zh.md: f2dbbb5f4508bd548c13106a4987a0fb4e4f7641
+interaction.md: 5545d0f749d78bdd327dfcc88d164f209fbbf5cf
+interaction.zh.md: 36f10d55fed79264f94e66a01789ac4226bf0619

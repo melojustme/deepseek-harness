@@ -219,6 +219,22 @@ export function setTaskStatus(
 }
 
 /**
+ * Remove an unattempted task from the document.
+ * @param state - source document.
+ * @param taskId - task to delete.
+ * @returns a new document without the task; unchanged when the task is missing
+ *   or any Host attempt still references it.
+ */
+export function removeTask(state: SchedulerState, taskId: string): SchedulerState {
+  const next = copyState(state)
+  if (next.tasks[taskId] === undefined) return next
+  if (Object.values(next.attempts).some(attempt => attempt.taskId === taskId)) return next
+  removePlacement(next, taskId)
+  next.tasks = Object.fromEntries(Object.entries(next.tasks).filter(([id]) => id !== taskId))
+  return next
+}
+
+/**
  * Complete and archive a task.
  * @param state - source document.
  * @param taskId - task to archive.

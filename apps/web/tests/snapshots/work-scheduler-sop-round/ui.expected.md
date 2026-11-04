@@ -24,6 +24,8 @@
   - combobox "放到":
     - option "待办" [selected]
     - option "Development SOP"
+    - option "已暂停"
+    - option "已完成"
   - group: 更多选项
   - button "取消"
   - button "添加任务"
@@ -31,23 +33,30 @@
     - region "待办列":
       - heading "待办 0" [level=2]
       - paragraph: 暂无任务
+      - button "在待办列添加": 添加
     - region "Development SOP列":
       - heading "Development SOP 2" [level=2]
       - textbox "列名称 Development SOP": Development SOP
-      - button "Development SOP Implementation 进行中":
-        - text: Development SOP
+      - button "Implementation 进行中":
         - strong: Implementation
         - text: 进行中
-      - button "Development SOP Verification 待办":
-        - text: Development SOP
+      - button "编辑"
+      - button "删除"
+      - button "Verification 待办":
         - strong: Verification
         - text: 待办
+      - button "编辑"
+      - button "删除"
+      - button "在Development SOP列添加": 添加
     - region "已暂停列":
       - heading "已暂停 0" [level=2]
       - paragraph: 暂无任务
+      - button "在已暂停列添加": 添加
     - region "已完成列":
       - heading "已完成 1" [level=2]
-      - button "待办 Intake 已完成":
-        - text: 待办
+      - button "Intake 已完成":
         - strong: Intake
         - text: 已完成
+      - button "编辑"
+      - button "删除"
+      - button "在已完成列添加": 添加

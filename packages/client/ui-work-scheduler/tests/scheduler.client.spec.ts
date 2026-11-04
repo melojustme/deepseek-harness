@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
+import type { SchedulerAttempt, SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import {
   addProcess, addTask, archiveTask, createSchedulerState, isClearedSchedulerDocument, moveTask,
-  normalizeSchedulerState, renameProcess, runnableTasks, setTaskStatus, wakeTask,
+  normalizeSchedulerState, removeTask, renameProcess, runnableTasks, setTaskStatus, wakeTask,
 } from '../src/client/scheduler.ts'
 
 describe('work scheduler domain', () => {
@@ -131,5 +131,30 @@ describe('work scheduler domain', () => {
     blocked = addTask(blocked, { id: 'async', description: '异步', processId: 'p1' })
     blocked.tasks.async!.status = 'async-blocked'
     expect(runnableTasks(blocked)).toEqual([])
+  })
+
+  it('deletes unattempted tasks and refuses to drop Host attempts', () => {
+    let state = addProcess(createSchedulerState(), '开发', 'p1')
+    state = addTask(state, { id: 't1', description: '待删', processId: 'p1' })
+    state = addTask(state, { id: 't2', description: '留下' })
+    expect(removeTask(state, 'missing')).toEqual(state)
+    state = removeTask(state, 't1')
+    expect(state.tasks.t1).toBeUndefined()
+    expect(state.processes[0]?.taskIds).toEqual([])
+    expect(state.backlogIds).toEqual(['t2'])
+    const attempted = addTask(createSchedulerState(), { id: 'kept', description: '有执行' })
+    attempted.attempts.a1 = {
+      id: 'a1',
+      taskId: 'kept',
+      commandId: 'execute',
+      status: 'running',
+      description: '有执行',
+      acceptance: [],
+      feedback: '',
+      sessionId: 'session-1',
+      createdAt: '',
+      updatedAt: '',
+    } as SchedulerAttempt
+    expect(removeTask(attempted, 'kept').tasks.kept?.description).toBe('有执行')
   })
 })
